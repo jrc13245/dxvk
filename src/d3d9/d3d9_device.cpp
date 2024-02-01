@@ -379,8 +379,9 @@ namespace dxvk {
           copyWidth * 2 <= HardwareCursorWidth) {
 
         // Adjust hot spot to larger cursor
-        // According to doc(https://learn.microsoft.com/en-us/windows/win32/api/d3d9/nf-d3d9-idirect3ddevice9-setcursorproperties)
-        // if the hardware only supprt 32x32, Windows would scale HotSpot back
+        // However according to doc(https://learn.microsoft.com/en-us/windows/win32/api/d3d9/nf-d3d9-idirect3ddevice9-setcursorproperties)
+        // if the hardware only supprt 32x32, Windows should scale HotSpot back
+        // current code not yet have this fallback capacity
         XHotSpot *= 2;
         YHotSpot *= 2;
 
