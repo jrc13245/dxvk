@@ -325,7 +325,6 @@ namespace dxvk {
     return D3D_OK;
   }
 
-
   HRESULT STDMETHODCALLTYPE D3D9DeviceEx::SetCursorProperties(
           UINT               XHotSpot,
           UINT               YHotSpot,
@@ -385,13 +384,44 @@ namespace dxvk {
         XHotSpot *= 2;
         YHotSpot *= 2;
 
-        // Enlarge cursor into 2X size using Nearest-neighbor
+        // Enlarge cursor into 2X size using AdvMAME2X
+        // https://en.wikipedia.org/wiki/Pixel-art_scaling_algorithms#EPX/Scale2%C3%97/AdvMAME2%C3%97
         for (uint32_t h = 0; h < copyHeight; h++) {
           for (uint32_t w = 0; w < copyWidth; ++w) {
-            std::memcpy(&bitmap[(h * 2) *     HardwareCursorPitch + (w * 2) *     HardwareCursorFormatSize], &data[h * lockedBox.RowPitch + w * HardwareCursorFormatSize], HardwareCursorFormatSize);
-            std::memcpy(&bitmap[(h * 2) *     HardwareCursorPitch + (w * 2 + 1) * HardwareCursorFormatSize], &data[h * lockedBox.RowPitch + w * HardwareCursorFormatSize], HardwareCursorFormatSize);
-            std::memcpy(&bitmap[(h * 2 + 1) * HardwareCursorPitch + (w * 2) *     HardwareCursorFormatSize], &data[h * lockedBox.RowPitch + w * HardwareCursorFormatSize], HardwareCursorFormatSize);
-            std::memcpy(&bitmap[(h * 2 + 1) * HardwareCursorPitch + (w * 2 + 1) * HardwareCursorFormatSize], &data[h * lockedBox.RowPitch + w * HardwareCursorFormatSize], HardwareCursorFormatSize);
+
+            uint32_t *dst1 = (uint32_t*)&bitmap[(h * 2) * HardwareCursorPitch + (w * 2) *     HardwareCursorFormatSize];  
+            uint32_t *dst2 = (uint32_t*)&bitmap[(h * 2) * HardwareCursorPitch + (w * 2 + 1) * HardwareCursorFormatSize];
+            uint32_t *dst3 = (uint32_t*)&bitmap[(h * 2 + 1) * HardwareCursorPitch + (w * 2) *     HardwareCursorFormatSize];
+            uint32_t *dst4 = (uint32_t*)&bitmap[(h * 2 + 1) * HardwareCursorPitch + (w * 2 + 1) * HardwareCursorFormatSize];
+            uint32_t *srcP = (uint32_t*)&data[h * lockedBox.RowPitch + w * HardwareCursorFormatSize];
+
+            std::memcpy(dst1, srcP, HardwareCursorFormatSize);
+            std::memcpy(dst2, srcP, HardwareCursorFormatSize);
+            std::memcpy(dst3, srcP, HardwareCursorFormatSize);
+            std::memcpy(dst4, srcP, HardwareCursorFormatSize);
+
+            if(h > 0 && w > 0 && h < copyHeight - 1 && w < copyWidth - 1) {
+              uint32_t *srcA = (uint32_t*)&data[(h - 1) * lockedBox.RowPitch + w * HardwareCursorFormatSize];
+              uint32_t *srcB = (uint32_t*)&data[h * lockedBox.RowPitch + (w + 1) * HardwareCursorFormatSize];
+              uint32_t *srcC = (uint32_t*)&data[h * lockedBox.RowPitch + (w - 1) * HardwareCursorFormatSize];
+              uint32_t *srcD = (uint32_t*)&data[(h + 1) * lockedBox.RowPitch + w * HardwareCursorFormatSize];
+
+              if(*srcC == *srcA && *srcC != *srcD && *srcA != *srcB) {
+                std::memcpy(dst1, srcA, HardwareCursorFormatSize);
+              }
+
+              if(*srcA == *srcB && *srcA != *srcC && *srcB != *srcD) {
+                std::memcpy(dst2, srcB, HardwareCursorFormatSize);
+              }
+
+              if(*srcD == *srcC && *srcD != *srcB && *srcC != *srcA) {
+                std::memcpy(dst3, srcC, HardwareCursorFormatSize);
+              }
+
+              if(*srcB == *srcD && *srcB != *srcA && *srcD != *srcC) {
+                std::memcpy(dst4, srcD, HardwareCursorFormatSize);
+              }
+            }
           }
         }
       } else {
