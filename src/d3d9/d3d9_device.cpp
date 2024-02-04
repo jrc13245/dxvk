@@ -384,43 +384,72 @@ namespace dxvk {
         XHotSpot *= 2;
         YHotSpot *= 2;
 
-        // Enlarge cursor into 2X size using AdvMAME2X
-        // https://en.wikipedia.org/wiki/Pixel-art_scaling_algorithms#EPX/Scale2%C3%97/AdvMAME2%C3%97
-        for (uint32_t h = 0; h < copyHeight; h++) {
-          for (uint32_t w = 0; w < copyWidth; ++w) {
+        // Enlarge cursor into 2X size using a modified Eagle algorithm
+        // https://en.wikipedia.org/wiki/Pixel-art_scaling_algorithms#Eagle
+        // The center pixel would blend with corners to generate result pixel, to solve the "single white pixel on black background disappear" problem
 
-            uint32_t *dst1 = (uint32_t*)&bitmap[(h * 2) * HardwareCursorPitch + (w * 2) *     HardwareCursorFormatSize];  
+        // source pixel:
+        // A B C
+        // D P E
+        // F G H
+        // expanding P into:
+        // 1 2
+        // 3 4
+
+        // bitwise OPs
+        uint32_t getAlpha = 0xFF000000;
+        uint32_t getRed   = 0x00FF0000;
+        uint32_t getGreen = 0x0000FF00;
+        uint32_t getBlue  = 0x000000FF;
+        for (uint32_t h = 0; h < copyHeight; h++) {
+          for (uint32_t w = 0; w < copyWidth; ++w) {    
+            uint32_t *dst1 = (uint32_t*)&bitmap[(h * 2) * HardwareCursorPitch + (w * 2) *     HardwareCursorFormatSize];
             uint32_t *dst2 = (uint32_t*)&bitmap[(h * 2) * HardwareCursorPitch + (w * 2 + 1) * HardwareCursorFormatSize];
             uint32_t *dst3 = (uint32_t*)&bitmap[(h * 2 + 1) * HardwareCursorPitch + (w * 2) *     HardwareCursorFormatSize];
             uint32_t *dst4 = (uint32_t*)&bitmap[(h * 2 + 1) * HardwareCursorPitch + (w * 2 + 1) * HardwareCursorFormatSize];
             uint32_t *srcP = (uint32_t*)&data[h * lockedBox.RowPitch + w * HardwareCursorFormatSize];
 
-            std::memcpy(dst1, srcP, HardwareCursorFormatSize);
-            std::memcpy(dst2, srcP, HardwareCursorFormatSize);
-            std::memcpy(dst3, srcP, HardwareCursorFormatSize);
-            std::memcpy(dst4, srcP, HardwareCursorFormatSize);
-
             if(h > 0 && w > 0 && h < copyHeight - 1 && w < copyWidth - 1) {
-              uint32_t *srcA = (uint32_t*)&data[(h - 1) * lockedBox.RowPitch + w * HardwareCursorFormatSize];
-              uint32_t *srcB = (uint32_t*)&data[h * lockedBox.RowPitch + (w + 1) * HardwareCursorFormatSize];
-              uint32_t *srcC = (uint32_t*)&data[h * lockedBox.RowPitch + (w - 1) * HardwareCursorFormatSize];
-              uint32_t *srcD = (uint32_t*)&data[(h + 1) * lockedBox.RowPitch + w * HardwareCursorFormatSize];
+              uint32_t *srcA = (uint32_t*)&data[(h - 1) * lockedBox.RowPitch + (w - 1) * HardwareCursorFormatSize];
+              uint32_t *srcB = (uint32_t*)&data[(h - 1) * lockedBox.RowPitch + (w) * HardwareCursorFormatSize];
+              uint32_t *srcC = (uint32_t*)&data[(h - 1) * lockedBox.RowPitch + (w + 1) * HardwareCursorFormatSize];
+              uint32_t *srcD = (uint32_t*)&data[(h) * lockedBox.RowPitch + (w - 1) * HardwareCursorFormatSize];
+              uint32_t *srcE = (uint32_t*)&data[(h) * lockedBox.RowPitch + (w + 1) * HardwareCursorFormatSize];
+              uint32_t *srcF = (uint32_t*)&data[(h + 1) * lockedBox.RowPitch + (w - 1) * HardwareCursorFormatSize];
+              uint32_t *srcG = (uint32_t*)&data[(h + 1) * lockedBox.RowPitch + (w) * HardwareCursorFormatSize];
+              uint32_t *srcH = (uint32_t*)&data[(h + 1) * lockedBox.RowPitch + (w + 1) * HardwareCursorFormatSize];
 
-              if(*srcC == *srcA && *srcC != *srcD && *srcA != *srcB) {
-                std::memcpy(dst1, srcA, HardwareCursorFormatSize);
-              }
+              uint32_t alpha = (*srcP & getAlpha);
 
-              if(*srcA == *srcB && *srcA != *srcC && *srcB != *srcD) {
-                std::memcpy(dst2, srcB, HardwareCursorFormatSize);
-              }
+              // top left
+              uint32_t red1 = (((*srcP & getRed) >> 16) * 3 + ((*srcA & getRed) >> 16) + ((*srcB & getRed) >> 16) + ((*srcD & getRed) >> 16)) / 6;
+              uint32_t green1 = (((*srcP & getGreen) >> 8) * 3 + ((*srcA & getGreen) >> 8) + ((*srcB & getGreen) >> 8) + ((*srcD & getGreen) >> 8)) / 6;
+              uint32_t blue1 = (((*srcP & getBlue)) * 3 + ((*srcA & getBlue)) + ((*srcB & getBlue)) + ((*srcD & getBlue))) / 6;
+              *dst1 = (alpha) + (red1 << 16) + (green1 << 8) + (blue1);
 
-              if(*srcD == *srcC && *srcD != *srcB && *srcC != *srcA) {
-                std::memcpy(dst3, srcC, HardwareCursorFormatSize);
-              }
+              // top right
+              uint32_t red2 = (((*srcP & getRed) >> 16) * 3 + ((*srcB & getRed) >> 16) + ((*srcC & getRed) >> 16) + ((*srcE & getRed) >> 16)) / 6;
+              uint32_t green2 = (((*srcP & getGreen) >> 8) * 3 + ((*srcB & getGreen) >> 8) + ((*srcC & getGreen) >> 8) + ((*srcE & getGreen) >> 8)) / 6;
+              uint32_t blue2 = (((*srcP & getBlue)) * 3 + ((*srcB & getBlue)) + ((*srcC & getBlue)) + ((*srcE & getBlue))) / 6;
+              *dst2 = (alpha) + (red2 << 16) + (green2 << 8) + (blue2);
 
-              if(*srcB == *srcD && *srcB != *srcA && *srcD != *srcC) {
-                std::memcpy(dst4, srcD, HardwareCursorFormatSize);
-              }
+              // bottom left
+              uint32_t red3 = (((*srcP & getRed) >> 16) * 3 + ((*srcD & getRed) >> 16) + ((*srcF & getRed) >> 16) + ((*srcG & getRed) >> 16)) / 6;
+              uint32_t green3 = (((*srcP & getGreen) >> 8) * 3 + ((*srcD & getGreen) >> 8) + ((*srcF & getGreen) >> 8) + ((*srcG & getGreen) >> 8)) / 6;
+              uint32_t blue3 = (((*srcP & getBlue)) * 3 + ((*srcD & getBlue)) + ((*srcF & getBlue)) + ((*srcG & getBlue))) / 6;
+              *dst3 = (alpha) + (red3 << 16) + (green3 << 8) + (blue3);
+
+              // bottom right
+              uint32_t red4 = (((*srcP & getRed) >> 16) * 3 + ((*srcE & getRed) >> 16) + ((*srcH & getRed) >> 16) + ((*srcG & getRed) >> 16)) / 6;
+              uint32_t green4 = (((*srcP & getGreen) >> 8) * 3 + ((*srcE & getGreen) >> 8) + ((*srcH & getGreen) >> 8) + ((*srcG & getGreen) >> 8)) / 6;
+              uint32_t blue4 = (((*srcP & getBlue)) * 3 + ((*srcE & getBlue)) + ((*srcH & getBlue)) + ((*srcG & getBlue))) / 6;
+              *dst4 = (alpha) + (red4 << 16) + (green4 << 8) + (blue4);
+
+            } else {
+              *dst1 = *srcP;
+              *dst2 = *srcP;
+              *dst3 = *srcP;
+              *dst4 = *srcP;
             }
           }
         }
