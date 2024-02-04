@@ -419,31 +419,33 @@ namespace dxvk {
               uint32_t *srcG = (uint32_t*)&data[(h + 1) * lockedBox.RowPitch + (w) * HardwareCursorFormatSize];
               uint32_t *srcH = (uint32_t*)&data[(h + 1) * lockedBox.RowPitch + (w + 1) * HardwareCursorFormatSize];
 
-              uint32_t alpha = (*srcP & getAlpha);
-
               // top left
+              uint32_t alpha1 = (((*srcP & getAlpha) >> 24) * 3 + ((*srcA & getAlpha) >> 24) + ((*srcB & getAlpha) >> 24) + ((*srcD & getAlpha) >> 24)) / 6;
               uint32_t red1 = (((*srcP & getRed) >> 16) * 3 + ((*srcA & getRed) >> 16) + ((*srcB & getRed) >> 16) + ((*srcD & getRed) >> 16)) / 6;
               uint32_t green1 = (((*srcP & getGreen) >> 8) * 3 + ((*srcA & getGreen) >> 8) + ((*srcB & getGreen) >> 8) + ((*srcD & getGreen) >> 8)) / 6;
               uint32_t blue1 = (((*srcP & getBlue)) * 3 + ((*srcA & getBlue)) + ((*srcB & getBlue)) + ((*srcD & getBlue))) / 6;
-              *dst1 = (alpha) + (red1 << 16) + (green1 << 8) + (blue1);
+              *dst1 = (alpha1 << 24) + (red1 << 16) + (green1 << 8) + (blue1);
 
               // top right
+              uint32_t alpha2 = (((*srcP & getAlpha) >> 24) * 3 + ((*srcB & getAlpha) >> 24) + ((*srcC & getAlpha) >> 24) + ((*srcE & getAlpha) >> 24)) / 6;
               uint32_t red2 = (((*srcP & getRed) >> 16) * 3 + ((*srcB & getRed) >> 16) + ((*srcC & getRed) >> 16) + ((*srcE & getRed) >> 16)) / 6;
               uint32_t green2 = (((*srcP & getGreen) >> 8) * 3 + ((*srcB & getGreen) >> 8) + ((*srcC & getGreen) >> 8) + ((*srcE & getGreen) >> 8)) / 6;
               uint32_t blue2 = (((*srcP & getBlue)) * 3 + ((*srcB & getBlue)) + ((*srcC & getBlue)) + ((*srcE & getBlue))) / 6;
-              *dst2 = (alpha) + (red2 << 16) + (green2 << 8) + (blue2);
+              *dst2 = (alpha2 << 24) + (red2 << 16) + (green2 << 8) + (blue2);
 
               // bottom left
+              uint32_t alpha3 = (((*srcP & getAlpha) >> 24) * 3 + ((*srcD & getAlpha) >> 24) + ((*srcF & getAlpha) >> 24) + ((*srcG & getAlpha) >> 24)) / 6;
               uint32_t red3 = (((*srcP & getRed) >> 16) * 3 + ((*srcD & getRed) >> 16) + ((*srcF & getRed) >> 16) + ((*srcG & getRed) >> 16)) / 6;
               uint32_t green3 = (((*srcP & getGreen) >> 8) * 3 + ((*srcD & getGreen) >> 8) + ((*srcF & getGreen) >> 8) + ((*srcG & getGreen) >> 8)) / 6;
               uint32_t blue3 = (((*srcP & getBlue)) * 3 + ((*srcD & getBlue)) + ((*srcF & getBlue)) + ((*srcG & getBlue))) / 6;
-              *dst3 = (alpha) + (red3 << 16) + (green3 << 8) + (blue3);
+              *dst3 = (alpha3 << 24) + (red3 << 16) + (green3 << 8) + (blue3);
 
               // bottom right
+              uint32_t alpha4 = (((*srcP & getAlpha) >> 24) * 3 + ((*srcE & getAlpha) >> 24) + ((*srcH & getAlpha) >> 24) + ((*srcG & getAlpha) >> 24)) / 6;
               uint32_t red4 = (((*srcP & getRed) >> 16) * 3 + ((*srcE & getRed) >> 16) + ((*srcH & getRed) >> 16) + ((*srcG & getRed) >> 16)) / 6;
               uint32_t green4 = (((*srcP & getGreen) >> 8) * 3 + ((*srcE & getGreen) >> 8) + ((*srcH & getGreen) >> 8) + ((*srcG & getGreen) >> 8)) / 6;
               uint32_t blue4 = (((*srcP & getBlue)) * 3 + ((*srcE & getBlue)) + ((*srcH & getBlue)) + ((*srcG & getBlue))) / 6;
-              *dst4 = (alpha) + (red4 << 16) + (green4 << 8) + (blue4);
+              *dst4 = (alpha4 << 24) + (red4 << 16) + (green4 << 8) + (blue4);
 
             } else {
               *dst1 = *srcP;
