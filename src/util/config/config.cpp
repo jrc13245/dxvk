@@ -14,6 +14,12 @@
 namespace dxvk {
 
   const static std::vector<std::pair<const char*, Config>> g_appDefaults = {{
+    /* Turtle WoW: Enlarge hardware cursor and enable deviceLossOnFocusLoss for AMD FSR multiboxing on WINE */
+    { R"(\\WoW(FoV|_tweaked)?\.exe$)", {{
+      { "d3d9.enlargeHardwareCursor",       "True" },
+      { "d3d9.deviceLossOnFocusLoss",       "True" },
+    }} },
+
     /* Assassin's Creed Syndicate: amdags issues  */
     { R"(\\ACS\.exe$)", {{
       { "dxgi.customVendorId",              "10de" },
