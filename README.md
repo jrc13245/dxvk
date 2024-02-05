@@ -13,6 +13,7 @@ It is recommended to build your own .dlls from source code. Downloading arbitrar
 ## Limitation
 
 - Only works for **SOME** D3D9 games. No D3D11 nor D3D12.
+- Only works for hardware cursor, not software cursor.
 - I tested it on Debian Linux and Windows 11 using [Turtle WoW](https://turtle-wow.org/)
 - According to MS document, if the underlaying platform can not support cursor size bigger than 32x32, API should scale the size back. However current implementation do not have such fallback capability. You may end up with no cursor.
 - Vanilla WoW has a hard-coded 32x32 cursor. So current code has a 64x64 buffer for it. If you try using this code for another game, beware that if that game's cursor is already bigger than 32x32, the enlargement code would be bypassed.
