@@ -4,10 +4,6 @@ This repository is a fork of [DXVK](https://github.com/doitsujin/dxvk/) with fol
 - Adding a new config option: `d3d9.enlargeHardwareCursor = True or False`. When enabled, D3D9 hardware cursor would be enlarged into 2X size. So when running an elder D3D9 game on modern HiDPI display should be easier to see mouse cursor.
 - Enable `d3d9.enlargeHardwareCursor = True` and `d3d9.deviceLossOnFocusLoss = True` for WoW.exe WoWFoV.exe and WoW_tweaked.exe. When running Vanilla WoW via [WINE-GE](https://github.com/GloriousEggroll/wine-ge-custom) we could enable [AMD FSR](https://www.amd.com/en/technologies/fidelityfx-super-resolution) just like Retail WoW. However when multiboxing, it seems Vanilla WoW need `d3d9.deviceLossOnFocusLoss` to switch between multiple full-screen windows.
 
-## How to use
-
-Build or download the modified `d3d9.dll` and put it into game's executable folder. (The folder holding `WoW.exe` etc.)
-
 ## DISCLAIMERS
 
 This work follow DXVK's original Zlib license.
