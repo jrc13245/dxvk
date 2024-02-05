@@ -22,17 +22,25 @@ It is recommended to build your own .dlls from source code. Downloading arbitrar
 To enlarge cursor into 2X size, this code employs a modified [Eagle](https://en.wikipedia.org/wiki/Pixel-art_scaling_algorithms#Eagle) algorithm.
 
 Say, we have original cursor pixel P and its surrounding pixels A,B,C,D,E,F,G,H as:
-A B C
-D P E
-F G H
+
+`A B C`
+
+`D P E`
+
+`F G H`
 
 we would try expanding P into 4 new pixels 1,2,3,4 as:
-1 2
-3 4
+
+`1 2`
+
+`3 4`
 
 Pixel 1 would be a blend of Pixel A,B,D,P by averaging their ARGB color channels. However as Pixel P is the actual source pixel, it would hold a weight of 3 during averaging, while Pixel A,B,D only weighted 1 each.
+
 Pixel 2 would be a bleand of Pixel B,C,P,E with the same averaging process.
+
 Pixel 3 would be a bleand of Pixel D,P,F,G with the same averaging process.
+
 Pixel 4 would be a bleand of Pixel P,E,G,H with the same averaging process.
 
 
