@@ -572,6 +572,14 @@ namespace dxvk {
       return hr;
     }
 
+    // Unbind all buffers that were still bound to the backend to avoid leaks.
+    EmitCs([](DxvkContext* ctx) {
+      ctx->bindIndexBuffer(DxvkBufferSlice(), VK_INDEX_TYPE_UINT32);
+      for (uint32_t i = 0; i < DxvkLimits::MaxNumVertexBindings; i++) {
+        ctx->bindVertexBuffer(i, DxvkBufferSlice(), 0);
+      }
+    });
+
     Flush();
     SynchronizeCsThread(DxvkCsThread::SynchronizeAll);
 
@@ -1176,7 +1184,12 @@ namespace dxvk {
     if (unlikely(iSwapChain != 0))
       return D3DERR_INVALIDCALL;
 
-    return m_implicitSwapchain->GetFrontBufferData(pDestSurface);
+    D3D9DeviceLock lock = LockDevice();
+
+    // In windowed mode, GetFrontBufferData takes a screenshot of the entire screen.
+    // We use the last used swapchain as a workaround.
+    // Total War: Medieval 2 relies on this.
+    return m_mostRecentlyUsedSwapchain->GetFrontBufferData(pDestSurface);
   }
 
 
@@ -1693,6 +1706,16 @@ namespace dxvk {
     ConsiderFlush(GpuFlushType::ImplicitStrongHint);
 
     m_flags.clr(D3D9DeviceFlag::InScene);
+
+    // D3D9 resets the internally bound vertex buffers and index buffer in EndScene.
+    // We have to ignore unbinding those buffers because of Operation Flashpoint Red River,
+    // so we should also clear the bindings here, to avoid leaks.
+    EmitCs([](DxvkContext* ctx) {
+      ctx->bindIndexBuffer(DxvkBufferSlice(), VK_INDEX_TYPE_UINT32);
+      for (uint32_t i = 0; i < DxvkLimits::MaxNumVertexBindings; i++) {
+        ctx->bindVertexBuffer(i, DxvkBufferSlice(), 0);
+      }
+    });
 
     return D3D_OK;
   }
@@ -7912,6 +7935,7 @@ namespace dxvk {
     }
     else
       m_implicitSwapchain = new D3D9SwapChainEx(this, pPresentationParameters, pFullscreenDisplayMode);
+      m_mostRecentlyUsedSwapchain = m_implicitSwapchain.ptr();
 
     if (pPresentationParameters->EnableAutoDepthStencil) {
       D3D9_COMMON_TEXTURE_DESC desc;
