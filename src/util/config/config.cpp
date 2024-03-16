@@ -60,13 +60,11 @@ namespace dxvk {
      * Intel needs to match the AMD result        */
     { R"(\\(farcry3|fc3_blooddragon)_d3d11\.exe$)", {{
       { "dxgi.hideNvidiaGpu",               "False" },
-      { "dxgi.hideNvkGpu",                  "False" },
       { "dxgi.hideIntelGpu",                "True" },
     }} },
     /* Far Cry 4 and Primal: Same as Far Cry 3    */
     { R"(\\(FarCry4|FCPrimal)\.exe$)", {{
       { "dxgi.hideNvidiaGpu",               "False" },
-      { "dxgi.hideNvkGpu",                  "False" },
       { "dxgi.hideIntelGpu",                "True" },
     }} },
     /* Frostpunk: Renders one frame with D3D9     *
@@ -891,7 +889,6 @@ namespace dxvk {
      * GPU unless dxgi Id match actual GPU Id  */
     { R"(\\Diablo IV\.exe$)", {{
       { "dxgi.hideNvidiaGpu",               "False"  },
-      { "dxgi.hideNvkGpu",                  "False"  },
     }} },
     /* WILD HEARTS™️                            *
      * D3D12 title using D3D11 device for      *
