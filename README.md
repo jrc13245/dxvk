@@ -22,12 +22,6 @@ For [Turtle WoW](https://turtle-wow.org/):
 
 For other games you might find more info from upstream DXVK(https://github.com/doitsujin/dxvk/)
 
-## DISCLAIMERS
-
-This work follow DXVK's original Zlib license.
-
-It is recommended to build your own .dlls from source code. Downloading arbitrary binary from Internet and apply them onto Azeroth could lead into Burning Legion invasion or lose of your account.
-
 ## Limitation
 
 - Only works for **SOME** D3D9 games. No D3D11 nor D3D12.
@@ -38,28 +32,14 @@ It is recommended to build your own .dlls from source code. Downloading arbitrar
 
 ## Algorithm
 
-To enlarge cursor into 2X size, this code employs a modified [Eagle](https://en.wikipedia.org/wiki/Pixel-art_scaling_algorithms#Eagle) algorithm.
+This work employs hq2x-1.2 from https://github.com/grom358/hqx
 
-Say, we have original cursor pixel P and its surrounding pixels A,B,C,D,E,F,G,H as:
+## DISCLAIMERS
 
-`A B C`
+This work follow DXVK's original Zlib license.
 
-`D P E`
+Included hqx algorithm code is LGPL. Care, it's LGPL.
 
-`F G H`
-
-we would try expanding P into 4 new pixels 1,2,3,4 as:
-
-`1 2`
-
-`3 4`
-
-Pixel 1 would be a blend of Pixel A,B,D,P by averaging their ARGB color channels. However as Pixel P is the actual source pixel, it would hold a weight of 3 during averaging, while Pixel A,B,D only weighted 1 each.
-
-Pixel 2 would be a bleand of Pixel B,C,P,E with the same averaging process.
-
-Pixel 3 would be a bleand of Pixel D,P,F,G with the same averaging process.
-
-Pixel 4 would be a bleand of Pixel P,E,G,H with the same averaging process.
+It is recommended to build your own .dlls from source code. Downloading arbitrary binary from Internet and apply them onto Azeroth could lead into Burning Legion invasion or lose of your account.
 
 

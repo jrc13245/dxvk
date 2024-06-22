@@ -15,6 +15,8 @@ d3d9_src = [
   'd3d9_interface.cpp',
   'd3d9_adapter.cpp',
   'd3d9_monitor.cpp',
+  'hq2x.cpp',
+  'hq2x_init.cpp',
   'd3d9_device.cpp',
   'd3d9_state.cpp',
   'd3d9_cursor.cpp',
