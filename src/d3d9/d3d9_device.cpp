@@ -23,7 +23,7 @@
 #include "../util/util_bit.h"
 #include "../util/util_math.h"
 
-#include "hq2x.h"
+#include "hqx.h"
 
 #include "d3d9_initializer.h"
 
