@@ -4,8 +4,8 @@
 
 namespace dxvk {
 
-  constexpr uint32_t HardwareCursorWidth     = 64u;
-  constexpr uint32_t HardwareCursorHeight    = 64u;
+  constexpr uint32_t HardwareCursorWidth     = 128u;
+  constexpr uint32_t HardwareCursorHeight    = 128u;
   constexpr uint32_t HardwareCursorFormatSize = 4u;
   constexpr uint32_t HardwareCursorPitch      = HardwareCursorWidth * HardwareCursorFormatSize;
 

@@ -19,9 +19,9 @@ namespace dxvk {
     { R"(\\ACS\.exe$)", {{
       { "dxgi.customVendorId",              "10de" },
     }} },
-    /* Turtle WoW: Enlarge hardware cursor and enable deviceLossOnFocusLoss for AMD FSR multiboxing on WINE */
+    /* Turtle WoW: Enlarge hardware cursor into 2X size and enable deviceLossOnFocusLoss for AMD FSR multiboxing on WINE */
     { R"(\\WoW(FoV|_tweaked)?\.exe$)", {{
-      { "d3d9.enlargeHardwareCursor",       "True" },
+      { "d3d9.enlargeHardwareCursor",       "2" },
       { "d3d9.deviceLossOnFocusLoss",       "True" },
     }} },
     /* Dissidia Final Fantasy NT Free Edition */

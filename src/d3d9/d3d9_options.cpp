@@ -77,7 +77,7 @@ namespace dxvk {
     this->samplerLodBias                = config.getOption<float>       ("d3d9.samplerLodBias",                0.0f);
     this->clampNegativeLodBias          = config.getOption<bool>        ("d3d9.clampNegativeLodBias",          false);
     this->countLosableResources         = config.getOption<bool>        ("d3d9.countLosableResources",         true);
-    this->enlargeHardwareCursor         = config.getOption<bool>        ("d3d9.enlargeHardwareCursor",         false);
+    this->enlargeHardwareCursor         = config.getOption<int32_t>     ("d3d9.enlargeHardwareCursor",         1);
     this->reproducibleCommandStream     = config.getOption<bool>        ("d3d9.reproducibleCommandStream",     false);
 
     // D3D8 options

@@ -352,7 +352,7 @@ namespace dxvk {
     m_implicitSwapchain->GetPresentParameters(&params);
     bool hwCursor  = params.Windowed;
 
-    // Always use a hardware cursor w/h <= 64 px
+    // Always use a hardware cursor w/h <= 128 px
     hwCursor |= inputWidth  <= HardwareCursorWidth
              || inputHeight <= HardwareCursorHeight;
 
@@ -379,7 +379,7 @@ namespace dxvk {
         HardwareCursorWidth,
         inputWidth);
 
-      if (m_d3d9Options.enlargeHardwareCursor &&
+      if (m_d3d9Options.enlargeHardwareCursor == 2 &&
           copyHeight * 2 <= HardwareCursorHeight &&
           copyWidth * 2 <= HardwareCursorWidth) {
 
@@ -395,6 +395,30 @@ namespace dxvk {
 
         hq2x_32_rb(srcPtr, copyPitch, dstPtr, HardwareCursorPitch, copyWidth, copyHeight);
 
+      } else if (m_d3d9Options.enlargeHardwareCursor == 3 &&
+          copyHeight * 3 <= HardwareCursorHeight &&
+          copyWidth * 3 <= HardwareCursorWidth) {
+        
+        XHotSpot *= 3;
+        YHotSpot *= 3;
+
+        uint32_t *dstPtr = (uint32_t*)bitmap;
+        uint32_t *srcPtr = (uint32_t*)data;
+
+        hq3x_32_rb(srcPtr, copyPitch, dstPtr, HardwareCursorPitch, copyWidth, copyHeight);
+
+      } else if (m_d3d9Options.enlargeHardwareCursor == 4 &&
+          copyHeight * 4 <= HardwareCursorHeight &&
+          copyWidth * 4 <= HardwareCursorWidth) {
+
+        XHotSpot *= 4;
+        YHotSpot *= 4;
+
+        uint32_t *dstPtr = (uint32_t*)bitmap;
+        uint32_t *srcPtr = (uint32_t*)data;
+
+        hq4x_32_rb(srcPtr, copyPitch, dstPtr, HardwareCursorPitch, copyWidth, copyHeight);
+        
       } else {
         for (uint32_t h = 0; h < copyHeight; h++)
           std::memcpy(&bitmap[h * HardwareCursorPitch], &data[h * lockedBox.RowPitch], copyPitch);
