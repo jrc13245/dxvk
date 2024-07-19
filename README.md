@@ -28,6 +28,21 @@ For [Turtle WoW](https://turtle-wow.org/):
 
 For other games you might find more info from upstream DXVK(https://github.com/doitsujin/dxvk/)
 
+
+## How to get 4X sized HUGE cursor instead of default 2X size
+
+For Windows 11:
+
+- Create a text file named `dxvk.conf` and put it at the same folder with d3d9.dll, with its contents:
+`d3d9.enlargeHardwareCursor = 4`
+
+
+For Linux:
+
+- Run the game with an environment variable:
+`DXVK_CONFIG="d3d9.enlargeHardwareCursor=4;" turtle-wow`
+
+
 ## Limitation
 
 - Only works for **SOME** D3D9 games. No D3D11 nor D3D12.
