@@ -19,8 +19,8 @@
  */
 
 #include <cstdint>
-#include "hq2x_common.h"
-#include "hq2x.h"
+#include "hqx_common.h"
+#include "hqx.h"
 
 #define PIXEL00_0     *dp = w[5];
 #define PIXEL00_10    Interp1(dp, w[5], w[1]);
