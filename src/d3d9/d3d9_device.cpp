@@ -189,6 +189,32 @@ namespace dxvk {
 
     hqxInit();
 
+    if (m_d3d9Options.enlargeHardwareCursor == 2 || m_d3d9Options.enlargeHardwareCursor == 3 || m_d3d9Options.enlargeHardwareCursor == 4) {
+      WIN32_FIND_DATA foundFile;
+      HANDLE hFind = INVALID_HANDLE_VALUE;
+    
+      hFind = FindFirstFile(R"(.\\SideloadCursor\\*)", &foundFile);
+
+      if (hFind != INVALID_HANDLE_VALUE) {
+        Logger::info("Found sideload data for D3D9 hardware cursor:");
+
+        do {
+          if ( !(foundFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ) {
+            Logger::info(foundFile.cFileName);
+          }
+
+        } while (FindNextFile(hFind, &foundFile) != 0);
+
+        DWORD err = GetLastError();
+        if(err == ERROR_NO_MORE_FILES) {
+          Logger::info("Cursor sideload OK.");
+
+        } else {
+          Logger::info("Cursor sideload ends with error.");
+        }
+      }
+    }
+
   }
 
 
