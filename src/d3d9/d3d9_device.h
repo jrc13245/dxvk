@@ -37,6 +37,7 @@
 #include <vector>
 #include <type_traits>
 #include <unordered_map>
+#include <filesystem>
 
 #include "../util/hqx/hqx.h"
 
@@ -117,6 +118,16 @@ namespace dxvk {
   struct D3D9StagingBufferMarkerPayload {
     uint64_t        sequenceNumber;
     VkDeviceSize    allocated;
+  };
+
+  struct D3D9SideloadCursor {
+    unsigned char *data;
+
+    UINT XHotSpot;
+    UINT YHotSpot;
+
+    int width;
+    int height;
   };
 
   using D3D9StagingBufferMarker = DxvkMarker<D3D9StagingBufferMarkerPayload>;
@@ -1323,7 +1334,7 @@ namespace dxvk {
     std::queue<Rc<D3D9StagingBufferMarker>> m_stagingBufferMarkers;
 
     D3D9Cursor                      m_cursor;
-    std::unordered_map<std::string, unsigned char*> m_sideloadCursors;
+    std::unordered_map<std::string, struct D3D9SideloadCursor> m_sideloadCursors;
 
     Com<D3D9Surface, false>         m_autoDepthStencil;
 

@@ -188,28 +188,61 @@ namespace dxvk {
     hqxInit();
 
     if (m_d3d9Options.enlargeHardwareCursor == 2 || m_d3d9Options.enlargeHardwareCursor == 3 || m_d3d9Options.enlargeHardwareCursor == 4) {
-      WIN32_FIND_DATA foundFile;
-      HANDLE hFind = INVALID_HANDLE_VALUE;
-    
-      hFind = FindFirstFile(R"(.\\SideloadCursor\\*)", &foundFile);
+      namespace fs = std::filesystem;
 
-      if (hFind != INVALID_HANDLE_VALUE) {
-        Logger::info("Found sideload data for D3D9 hardware cursor:");
+      unsigned char* data = NULL;
 
-        do {
-          if ( !(foundFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ) {
-            Logger::info(foundFile.cFileName);
+      try {
+        Logger::info("Attempting to sideload D3D9 hardware cursor...");
+
+        fs::path sideloadDirectory{R"(SideloadCursors)"};
+        for (auto const& entry : fs::directory_iterator{sideloadDirectory}) {
+
+          if ( !entry.is_directory() ) {
+            int w,h,n;
+            data = stbi_load(entry.path().string().c_str(), &w, &h, &n, 0);
+
+            std::string fullname = entry.path().stem().string();
+            std::string::size_type hashOffset = fullname.find(R"(-)");
+            std::string::size_type hotspotOffset = fullname.rfind(R"(,)");
+
+            if (data != NULL && n == (int)HardwareCursorFormatSize && w <= (int)HardwareCursorWidth && h <= (int)HardwareCursorHeight &&hashOffset != std::string::npos && hotspotOffset != std::string::npos) {
+              std::string hashStr = fullname.substr(0, hashOffset);
+              // I know this line is shit. but c++ substr() force me to calculate the "mid part" like this
+              std::string hotXstr = fullname.substr(hashOffset + 1, fullname.length() - (hashOffset + 1) - (fullname.length() - hotspotOffset));
+              std::string hotYstr = fullname.substr(hotspotOffset + 1);
+
+              struct D3D9SideloadCursor c;
+              c.data = data;
+              c.XHotSpot = std::stoul(hotXstr);
+              c.YHotSpot = std::stoul(hotYstr);
+              c.width = w;
+              c.height = h;
+
+              // stb_image read as RGBA, while Windows need BGRA
+              for(int y = 0; y < h; ++y) {
+                for(int x = 0; x < w; ++x) {
+                  unsigned char *ptr = &c.data[(x + y * w) * HardwareCursorFormatSize];
+                  
+                  unsigned char tmp = ptr[0];
+                  ptr[0] = ptr[2];
+                  ptr[2] = tmp;
+                }
+              }  
+
+              m_sideloadCursors.insert({hashStr, c});
+
+              Logger::info(entry.path().string());
+            } else {
+              stbi_image_free(data);
+              data = NULL;
+            }
           }
-
-        } while (FindNextFile(hFind, &foundFile) != 0);
-
-        DWORD err = GetLastError();
-        if(err == ERROR_NO_MORE_FILES) {
-          Logger::info("Cursor sideload OK.");
-
-        } else {
-          Logger::info("Cursor sideload ends with error.");
         }
+      } catch (std::exception const& err) {
+        stbi_image_free(data);
+        data = NULL;
+        Logger::info(err.what());
       }
     }
 
@@ -234,7 +267,7 @@ namespace dxvk {
     m_dxvkDevice->waitForIdle(); // Sync Device
 
     for (const auto& i : m_sideloadCursors) {
-      stbi_image_free(i.second);
+      stbi_image_free(i.second.data);
     }
   }
 
@@ -407,46 +440,46 @@ namespace dxvk {
         HardwareCursorWidth,
         inputWidth);
 
-      if (m_d3d9Options.enlargeHardwareCursor == 2 &&
-          copyHeight * 2 <= HardwareCursorHeight &&
-          copyWidth * 2 <= HardwareCursorWidth) {
+      
 
-        // Adjust hot spot to larger cursor
-        // However according to doc(https://learn.microsoft.com/en-us/windows/win32/api/d3d9/nf-d3d9-idirect3ddevice9-setcursorproperties)
-        // if the hardware only supprt 32x32, Windows should scale HotSpot back
-        // However current scaling code does not have this fallback capacity
-        XHotSpot *= 2;
-        YHotSpot *= 2;
-
-        uint32_t *dstPtr = (uint32_t*)bitmap;
-        uint32_t *srcPtr = (uint32_t*)data;
-
-        hq2x_32_rb(srcPtr, copyPitch, dstPtr, HardwareCursorPitch, copyWidth, copyHeight);
-
-      } else if (m_d3d9Options.enlargeHardwareCursor == 3 &&
-          copyHeight * 3 <= HardwareCursorHeight &&
-          copyWidth * 3 <= HardwareCursorWidth) {
+      if( (m_d3d9Options.enlargeHardwareCursor == 2 || m_d3d9Options.enlargeHardwareCursor == 3 || m_d3d9Options.enlargeHardwareCursor == 4)
+          && (copyHeight * m_d3d9Options.enlargeHardwareCursor <= HardwareCursorHeight)
+          && (copyWidth * m_d3d9Options.enlargeHardwareCursor <= HardwareCursorWidth) ) {
+        std::string hash = Sha1Hash::compute(data, copyPitch * copyHeight).toString();
         
-        XHotSpot *= 3;
-        YHotSpot *= 3;
+        Logger::info("Enlarge D3D9 hardware cursor: " + hash);
 
-        uint32_t *dstPtr = (uint32_t*)bitmap;
-        uint32_t *srcPtr = (uint32_t*)data;
+        if( auto search = m_sideloadCursors.find(hash); search != m_sideloadCursors.end() ) {
+          // Using sideload cursor
+          D3D9SideloadCursor cur = search->second;
 
-        hq3x_32_rb(srcPtr, copyPitch, dstPtr, HardwareCursorPitch, copyWidth, copyHeight);
+          XHotSpot = cur.XHotSpot;
+          YHotSpot = cur.YHotSpot;
 
-      } else if (m_d3d9Options.enlargeHardwareCursor == 4 &&
-          copyHeight * 4 <= HardwareCursorHeight &&
-          copyWidth * 4 <= HardwareCursorWidth) {
+          for (uint32_t h = 0; h < (uint32_t)cur.height; h++)
+            std::memcpy(&bitmap[h * HardwareCursorPitch], &cur.data[h * cur.width * HardwareCursorFormatSize], cur.width * HardwareCursorFormatSize);
 
-        XHotSpot *= 4;
-        YHotSpot *= 4;
+        } else {
+          // Using hqx
+          XHotSpot *= m_d3d9Options.enlargeHardwareCursor;
+          YHotSpot *= m_d3d9Options.enlargeHardwareCursor;
 
-        uint32_t *dstPtr = (uint32_t*)bitmap;
-        uint32_t *srcPtr = (uint32_t*)data;
+          uint32_t *dstPtr = (uint32_t*)bitmap;
+          uint32_t *srcPtr = (uint32_t*)data;
 
-        hq4x_32_rb(srcPtr, copyPitch, dstPtr, HardwareCursorPitch, copyWidth, copyHeight);
-        
+          switch(m_d3d9Options.enlargeHardwareCursor) {
+            case 2:
+              hq2x_32_rb(srcPtr, copyPitch, dstPtr, HardwareCursorPitch, copyWidth, copyHeight);
+              break;
+            case 3:
+              hq3x_32_rb(srcPtr, copyPitch, dstPtr, HardwareCursorPitch, copyWidth, copyHeight);
+              break;
+            case 4:
+              hq4x_32_rb(srcPtr, copyPitch, dstPtr, HardwareCursorPitch, copyWidth, copyHeight);
+              break;
+          }
+
+        }
       } else {
         for (uint32_t h = 0; h < copyHeight; h++)
           std::memcpy(&bitmap[h * HardwareCursorPitch], &data[h * lockedBox.RowPitch], copyPitch);

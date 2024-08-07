@@ -9,6 +9,9 @@
         "span": "cpp",
         "regex": "cpp",
         "utility": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "filesystem": "cpp",
+        "cstddef": "cpp",
+        "type_traits": "cpp"
     }
 }
