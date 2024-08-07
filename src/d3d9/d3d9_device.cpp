@@ -25,6 +25,8 @@
 
 #include "../util/hqx/hqx.h"
 
+#include "../util/stb/stb_image.h"
+
 #include "d3d9_initializer.h"
 
 #include <algorithm>

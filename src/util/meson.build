@@ -23,6 +23,8 @@ util_src = files([
   'hqx/hq3x.cpp',
   'hqx/hq4x.cpp',
   'hqx/hqx_init.cpp',
+  
+  'stb/stb_image.cpp',
 
   'sha1/sha1.c',
   'sha1/sha1_util.cpp',
