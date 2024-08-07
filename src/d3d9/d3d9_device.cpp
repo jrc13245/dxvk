@@ -232,6 +232,10 @@ namespace dxvk {
     delete m_converter;
 
     m_dxvkDevice->waitForIdle(); // Sync Device
+
+    for (const auto& i : m_sideloadCursors) {
+      stbi_image_free(i.second);
+    }
   }
 
 

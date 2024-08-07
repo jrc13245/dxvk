@@ -39,6 +39,7 @@
 #include <unordered_map>
 
 #include "../util/hqx/hqx.h"
+
 #include "../util/stb/stb_image.h"
 
 #include "../util/util_flush.h"
@@ -1322,6 +1323,7 @@ namespace dxvk {
     std::queue<Rc<D3D9StagingBufferMarker>> m_stagingBufferMarkers;
 
     D3D9Cursor                      m_cursor;
+    std::unordered_map<std::string, unsigned char*> m_sideloadCursors;
 
     Com<D3D9Surface, false>         m_autoDepthStencil;
 
