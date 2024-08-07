@@ -23,10 +23,6 @@
 #include "../util/util_bit.h"
 #include "../util/util_math.h"
 
-#include "../util/hqx/hqx.h"
-
-#include "../util/stb/stb_image.h"
-
 #include "d3d9_initializer.h"
 
 #include <algorithm>

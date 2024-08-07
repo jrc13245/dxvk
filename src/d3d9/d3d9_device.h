@@ -38,6 +38,9 @@
 #include <type_traits>
 #include <unordered_map>
 
+#include "../util/hqx/hqx.h"
+#include "../util/stb/stb_image.h"
+
 #include "../util/util_flush.h"
 #include "../util/util_lru.h"
 
