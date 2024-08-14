@@ -4,7 +4,7 @@ This repository is a fork of [DXVK](https://github.com/doitsujin/dxvk/) with fol
 
 - Adding a new config option: `d3d9.enlargeHardwareCursor = 2 or 3 or 4`. When enabled, D3D9 hardware cursor would be enlarged into 2X, 3X or 4X size. So when play an elder D3D9 game on modern HiDPI display should be easier to see mouse cursor. Values other than 2, 3, 4 would be ignored.
 
-- Allowing sideload images into D3D9 hardware cursor. While hqx algorithm is specially designed for pixel-art scaling, small cursor enlargement still result in low quality output. So this work also provide a way to sideload high resolution images into D3D9 hardware cursor.
+- Allowing sideload images into D3D9 hardware cursor. While [hqx](https://en.wikipedia.org/wiki/Hqx) algorithm is specially designed for pixel-art scaling, small cursor enlargement still result in low quality output. So this work also provide a way to sideload high resolution images into D3D9 hardware cursor.
 
 - Enable `d3d9.enlargeHardwareCursor = 2` and `d3d9.deviceLossOnFocusLoss = True` for WoW.exe WoWFoV.exe and WoW_tweaked.exe. 
 
@@ -45,26 +45,33 @@ For Linux
 
 ## Sideload image into cursor
 
-- Enable `d3d9.enlargeHardwareCursor` option, the multiplier would be ignored when using sideload. So 2 or 3 or 4 would be the same.
+Sideload capability allows high definition images being loaded into D3D9 hardware cursor.
+
+Some cursor set for Vanilla WoW here: https://github.com/allfoxwy/some-bigger-cursor
+
+To sideload:
+- Enable `d3d9.enlargeHardwareCursor = 2 or 3 or 4` option. The multiplier influence [hqx](https://en.wikipedia.org/wiki/Hqx) scaling when no corresponding sideload image available.
 
 - Create a new folder named `SideloadCursors` at the same location with d3d9.dll
 
-- Put desired image into `SideloadCursors`. Its size must NOT bigger than 128x128 pixel. It could be JPG, PNG, TGA, BMP, PSD, GIF, HDR, PIC. It must contain 4 color channels including RED GREEN BLUE and ALPHA.
+- Put desired images into `SideloadCursors`. Their size must NOT bigger than 128x128 pixel. They could be JPG, PNG, TGA, BMP, PSD, GIF, HDR, PIC. They must contain 4 color channels.
 
-- Rename the image like `CursorHash-HotSpotX,HotSpotY.png`.
+- Rename images like `CursorHash-HotSpotX,HotSpotY.png`.
 
-- Any number of image could be sideloaded. If the corresponding in-game cursor don't have sideload image, hqx algorithm scaling would be used.
+- Any number of images could be sideloaded. If the corresponding in-game cursor don't have sideload image, [hqx](https://en.wikipedia.org/wiki/Hqx) algorithm scaling would be used.
 
 
-Every in-game cursor would have a different CursorHash. We could get this information via DXVK debug info. Run the game with an environment variable: `DXVK_LOG_LEVEL=info`
+Every in-game cursor would have a different CursorHash. If you are building your own cursor set, you would need this hash value information.
 
-Whenever in-game cursor change, a CursorHash would be printed to terminal/log-file as
+You could get this information via DXVK debug info. Run the game with an environment variable: `DXVK_LOG_LEVEL=info`
+
+Whenever an in-game cursor appear or change, a CursorHash value would be printed to terminal/log-file as
 `info:  Enlarge D3D9 hardware cursor: 2f4f94382e0e5b958fae25559151a1c02aea9ea3`
 
-HotSpot is the clickable spot coordinates on image.
+HotSpot is the clickable spot coordinates on image. It doesn't have to be the center.
 
-For example we would like (11, 11) be hot spot for cursor `2f4f94382e0e5b958fae25559151a1c02aea9ea3`,
-we could rename our image as `2f4f94382e0e5b958fae25559151a1c02aea9ea3-11,11.png`.
+For example if you would like (11, 11) be hot spot for cursor `2f4f94382e0e5b958fae25559151a1c02aea9ea3`,
+You could rename your image as `2f4f94382e0e5b958fae25559151a1c02aea9ea3-11,11.png`.
 
 
 
@@ -89,7 +96,7 @@ This work employs [hqx](https://en.wikipedia.org/wiki/Hqx). Its implementation i
 
 This work follow DXVK's original Zlib license.
 
-Included hqx algorithm code is LGPL.
+Included [hqx](https://en.wikipedia.org/wiki/Hqx) algorithm code is LGPL.
 Care, it's LGPL.
 
 Included [stb_image](https://github.com/nothings/stb) is public domain.
