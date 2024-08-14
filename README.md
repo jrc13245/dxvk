@@ -8,7 +8,7 @@ This repository is a fork of [DXVK](https://github.com/doitsujin/dxvk/) with fol
 
 - Enable `d3d9.enlargeHardwareCursor = 2` and `d3d9.deviceLossOnFocusLoss = True` for WoW.exe WoWFoV.exe and WoW_tweaked.exe. 
 
-The `d3d9.deviceLossOnFocusLoss = True` option is for running Vanilla WoW via [WINE-GE](https://github.com/GloriousEggroll/wine-ge-custom) and when enable [AMD FSR](https://www.amd.com/en/technologies/fidelityfx-super-resolution) just like Retail WoW. When multiboxing, it seems Vanilla WoW need `d3d9.deviceLossOnFocusLoss` to switch between multiple full-screen FSR windows.
+The `d3d9.deviceLossOnFocusLoss = True` option is for running Vanilla WoW via [Proton-GE](https://github.com/GloriousEggroll/proton-ge-custom) and when enabling [AMD FSR](https://www.amd.com/en/products/graphics/technologies/fidelityfx/super-resolution.html) just like Retail WoW. When multiboxing, it seems Vanilla WoW need `d3d9.deviceLossOnFocusLoss` to switch between multiple full-screen FSR windows.
 
 If you have issue report, you could reply at [Turtle WoW forum](https://forum.turtle-wow.org/viewtopic.php?t=12997)
 
