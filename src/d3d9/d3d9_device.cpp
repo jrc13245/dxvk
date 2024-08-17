@@ -195,16 +195,18 @@ namespace dxvk {
       try {
         Logger::info("Attempting to sideload D3D9 hardware cursor...");
 
-        fs::path sideloadDirectory{R"(SideloadCursors)"};
+        fs::path sideloadDirectory{"SideloadCursors"};
         for (auto const& entry : fs::directory_iterator{sideloadDirectory}) {
 
           if ( !entry.is_directory() ) {
             int w,h,n;
-            data = stbi_load(entry.path().string().c_str(), &w, &h, &n, 0);
 
-            std::string fullname = entry.path().stem().string();
-            std::string::size_type hashOffset = fullname.find(R"(-)");
-            std::string::size_type hotspotOffset = fullname.rfind(R"(,)");
+            // We defined STBI_WINDOWS_UTF8, so we use UTF-8 filename here
+            data = stbi_load(entry.path().u8string().data(), &w, &h, &n, 0);
+
+            std::string fullname( entry.path().stem().u8string().data() );
+            std::string::size_type hashOffset = fullname.find("-");
+            std::string::size_type hotspotOffset = fullname.rfind(",");
 
             if (data != NULL && n == (int)HardwareCursorFormatSize && w <= (int)HardwareCursorWidth && h <= (int)HardwareCursorHeight &&hashOffset != std::string::npos && hotspotOffset != std::string::npos) {
               std::string hashStr = fullname.substr(0, hashOffset);
@@ -232,7 +234,10 @@ namespace dxvk {
 
               m_sideloadCursors.insert({hashStr, c});
 
-              Logger::info(entry.path().string());
+              // There is a conversion by .string() from wchar_t[] to std::string. How did it work is "unspecified" according to https://en.cppreference.com/w/cpp/filesystem/path/string
+              // Neither sure if DXVK log facility support this std::string (which could be __wine_dbg_output)
+              // My test shows this work both on Linux and Windows
+              Logger::info( entry.path().string() );
             } else {
               stbi_image_free(data);
               data = NULL;
