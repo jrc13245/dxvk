@@ -785,7 +785,7 @@ namespace dxvk {
      * @param FirstIndex The first index
      * @param NumIndices The number of indices that will be drawn. If this is 0, the index buffer binding will not be modified.
      */
-    void UploadDynamicSysmemBuffers(
+    void UploadPerDrawData(
             UINT&                   FirstVertexIndex,
             UINT                    NumVertices,
             UINT&                   FirstIndex,
@@ -793,7 +793,7 @@ namespace dxvk {
             INT&                    BaseVertexIndex,
             bool*                   pDynamicVBOs,
             bool*                   pDynamicIBO);
-    
+
 
     void SetupFPU();
 
@@ -1033,6 +1033,26 @@ namespace dxvk {
       return m_behaviorFlags & D3DCREATE_SOFTWARE_VERTEXPROCESSING;
     }
 
+    bool CanSWVP() const {
+      return m_behaviorFlags & (D3DCREATE_MIXED_VERTEXPROCESSING | D3DCREATE_SOFTWARE_VERTEXPROCESSING);
+    }
+
+    bool IsSWVP() const {
+      return m_isSWVP;
+    }
+
+    UINT GetFixedFunctionVSCount() const {
+      return m_ffModules.GetVSCount();
+    }
+
+    UINT GetFixedFunctionFSCount() const {
+      return m_ffModules.GetFSCount();
+    }
+
+    UINT GetSWVPShaderCount() const {
+      return m_swvpEmulator.GetShaderCount();
+    }
+
   private:
 
     DxvkCsChunkRef AllocCsChunk() {
@@ -1060,10 +1080,6 @@ namespace dxvk {
         EmitCsChunk(std::move(m_csChunk));
         m_csChunk = AllocCsChunk();
       }
-    }
-
-    bool CanSWVP() const {
-      return m_behaviorFlags & (D3DCREATE_MIXED_VERTEXPROCESSING | D3DCREATE_SOFTWARE_VERTEXPROCESSING);
     }
 
     // Device Reset detection for D3D9SwapChainEx::Present
@@ -1380,6 +1396,10 @@ namespace dxvk {
     uint32_t                        m_activeTextures         = 0;
     uint32_t                        m_activeTexturesToUpload = 0;
     uint32_t                        m_activeTexturesToGen    = 0;
+
+    uint32_t                        m_activeVertexBuffers                = 0;
+    uint32_t                        m_activeVertexBuffersToUpload        = 0;
+    uint32_t                        m_activeVertexBuffersToUploadPerDraw = 0;
 
     // m_fetch4Enabled is whether fetch4 is currently enabled
     // from the application.
