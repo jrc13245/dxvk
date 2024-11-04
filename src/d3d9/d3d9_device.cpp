@@ -199,59 +199,72 @@ namespace dxvk {
 
       unsigned char* data = NULL;
 
-      try {
+      try
+      {
         Logger::info("Attempting to sideload D3D9 hardware cursor...");
 
         fs::path sideloadDirectory{"SideloadCursors"};
-        for (auto const& entry : fs::directory_iterator{sideloadDirectory}) {
+        if (fs::exists(sideloadDirectory) && fs::is_directory(sideloadDirectory))
+        {
+          for (auto const &entry : fs::directory_iterator{sideloadDirectory})
+          {
 
-          if ( !entry.is_directory() ) {
-            int w,h,n;
+            if (!entry.is_directory())
+            {
+              int w, h, n;
 
-            // We defined STBI_WINDOWS_UTF8, so we use UTF-8 filename here
-            data = stbi_load(entry.path().u8string().data(), &w, &h, &n, 0);
+              // We defined STBI_WINDOWS_UTF8, so we use UTF-8 filename here
+              data = stbi_load(entry.path().u8string().data(), &w, &h, &n, 0);
 
-            std::string fullname( entry.path().stem().u8string().data() );
-            std::string::size_type hashOffset = fullname.find("-");
-            std::string::size_type hotspotOffset = fullname.rfind(",");
+              std::string fullname(entry.path().stem().u8string().data());
+              std::string::size_type hashOffset = fullname.find("-");
+              std::string::size_type hotspotOffset = fullname.rfind(",");
 
-            if (data != NULL && n == (int)HardwareCursorFormatSize && w <= (int)HardwareCursorWidth && h <= (int)HardwareCursorHeight &&hashOffset != std::string::npos && hotspotOffset != std::string::npos) {
-              std::string hashStr = fullname.substr(0, hashOffset);
-              // I know this line is shit. but c++ substr() force me to calculate the "mid part" like this
-              std::string hotXstr = fullname.substr(hashOffset + 1, fullname.length() - (hashOffset + 1) - (fullname.length() - hotspotOffset));
-              std::string hotYstr = fullname.substr(hotspotOffset + 1);
+              if (data != NULL && n == (int)HardwareCursorFormatSize && w <= (int)HardwareCursorWidth && h <= (int)HardwareCursorHeight && hashOffset != std::string::npos && hotspotOffset != std::string::npos)
+              {
+                std::string hashStr = fullname.substr(0, hashOffset);
+                // I know this line is shit. but c++ substr() force me to calculate the "mid part" like this
+                std::string hotXstr = fullname.substr(hashOffset + 1, fullname.length() - (hashOffset + 1) - (fullname.length() - hotspotOffset));
+                std::string hotYstr = fullname.substr(hotspotOffset + 1);
 
-              struct D3D9SideloadCursor c;
-              c.data = data;
-              c.XHotSpot = std::stoul(hotXstr);
-              c.YHotSpot = std::stoul(hotYstr);
-              c.width = w;
-              c.height = h;
+                struct D3D9SideloadCursor c;
+                c.data = data;
+                c.XHotSpot = std::stoul(hotXstr);
+                c.YHotSpot = std::stoul(hotYstr);
+                c.width = w;
+                c.height = h;
 
-              // stb_image read as RGBA, while Windows need BGRA
-              for(int y = 0; y < h; ++y) {
-                for(int x = 0; x < w; ++x) {
-                  unsigned char *ptr = &c.data[(x + y * w) * HardwareCursorFormatSize];
-                  
-                  unsigned char tmp = ptr[0];
-                  ptr[0] = ptr[2];
-                  ptr[2] = tmp;
+                // stb_image read as RGBA, while Windows need BGRA
+                for (int y = 0; y < h; ++y)
+                {
+                  for (int x = 0; x < w; ++x)
+                  {
+                    unsigned char *ptr = &c.data[(x + y * w) * HardwareCursorFormatSize];
+
+                    unsigned char tmp = ptr[0];
+                    ptr[0] = ptr[2];
+                    ptr[2] = tmp;
+                  }
                 }
-              }  
 
-              m_sideloadCursors.insert({hashStr, c});
+                m_sideloadCursors.insert({hashStr, c});
 
-              // There is a conversion by .string() from wchar_t[] to std::string. How did it work is "unspecified" according to https://en.cppreference.com/w/cpp/filesystem/path/string
-              // Neither sure if DXVK log facility support this std::string (which could be __wine_dbg_output)
-              // My test shows this work both on Linux and Windows
-              Logger::info( entry.path().string() );
-            } else {
-              stbi_image_free(data);
-              data = NULL;
+                // There is a conversion by .string() from wchar_t[] to std::string. How did it work is "unspecified" according to https://en.cppreference.com/w/cpp/filesystem/path/string
+                // Neither sure if DXVK log facility support this std::string (which could be __wine_dbg_output)
+                // My test shows this work both on Linux and Windows
+                Logger::info(entry.path().string());
+              }
+              else
+              {
+                stbi_image_free(data);
+                data = NULL;
+              }
             }
           }
         }
-      } catch (std::exception const& err) {
+      }
+      catch (std::exception const &err)
+      {
         stbi_image_free(data);
         data = NULL;
         Logger::info(err.what());
