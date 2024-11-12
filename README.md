@@ -6,9 +6,9 @@ This repository is a fork of [DXVK](https://github.com/doitsujin/dxvk/) with fol
 
 - Allowing sideload images into D3D9 hardware cursor. While [hqx](https://en.wikipedia.org/wiki/Hqx) algorithm is specially designed for pixel-art scaling, small cursor enlargement still result in low quality output. So this work also provide a way to sideload high resolution images into D3D9 hardware cursor.
 
-- Enable `d3d9.enlargeHardwareCursor = 2` and `d3d9.deviceLossOnFocusLoss = True` for WoW.exe WoWFoV.exe and WoW_tweaked.exe. 
+- Enable `d3d9.enlargeHardwareCursor = 4` and `d3d9.deviceLossOnFocusLoss = True` for WoW.exe WoW_sideload-DLL.exe and WoW_tweaked.exe. 
 
-The `d3d9.deviceLossOnFocusLoss = True` option is for running Vanilla WoW via [Proton-GE](https://github.com/GloriousEggroll/proton-ge-custom) and when enabling [AMD FSR](https://www.amd.com/en/products/graphics/technologies/fidelityfx/super-resolution.html) just like Retail WoW. When multiboxing, it seems Vanilla WoW need `d3d9.deviceLossOnFocusLoss` to switch between multiple full-screen FSR windows.
+The `d3d9.deviceLossOnFocusLoss = True` option is for running Vanilla WoW via [Proton-GE](https://github.com/GloriousEggroll/proton-ge-custom) and when enabling [AMD FSR](https://www.amd.com/en/products/graphics/technologies/fidelityfx/super-resolution.html). When multiboxing, it seems Vanilla WoW need `d3d9.deviceLossOnFocusLoss` to switch between multiple full-screen FSR windows.
 
 If you have issue report, you could reply at [Turtle WoW forum](https://forum.turtle-wow.org/viewtopic.php?t=12997)
 
@@ -18,7 +18,7 @@ If you have issue report, you could reply at [Turtle WoW forum](https://forum.tu
 
 For [Turtle WoW](https://turtle-wow.org/):
 
-- Enable Hardware Cursor in game Video Options
+- Enable Hardware Cursor in game Video Options. While DXVK 2.5 does support software cursor, in my understanding hardware cursor should provide better performance, so I would currently keep enlargement code to hardware cursor only.
 
 - Windows 11: Put d3d9.dll under the same folder with WoW.exe
 
@@ -29,17 +29,6 @@ For [Turtle WoW](https://turtle-wow.org/):
 - WINE may need a DLL override via winecfg to mark d3d9 as Native. Proton don't need this.
 
 For other games you might find more info from [upstream DXVK](https://github.com/doitsujin/dxvk/)
-
-
-
-## How to get 4X sized HUGE cursor instead of default 2X size
-
-For Windows 11
-- Create a text file named `dxvk.conf` at the same location with d3d9.dll, with its contents: `d3d9.enlargeHardwareCursor = 4`
-
-
-For Linux
-- Run the game with an environment variable: `DXVK_CONFIG="d3d9.enlargeHardwareCursor=4;" turtle-wow`
 
 
 

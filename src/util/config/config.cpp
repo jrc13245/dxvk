@@ -48,11 +48,6 @@ namespace dxvk {
     { R"(\\ACS\.exe$)", {{
       { "dxgi.customVendorId",              "10de" },
     }} },
-    /* Turtle WoW: Enlarge hardware cursor into 2X size and enable deviceLossOnFocusLoss for AMD FSR multiboxing on WINE */
-    { R"(\\WoW(FoV|_tweaked)?\.exe$)", {{
-      { "d3d9.enlargeHardwareCursor",       "2" },
-      { "d3d9.deviceLossOnFocusLoss",       "True" },
-    }} },
     /* Dissidia Final Fantasy NT Free Edition */
     { R"(\\dffnt\.exe$)", {{
       { "dxgi.deferSurfaceCreation",        "True" },
@@ -460,6 +455,11 @@ namespace dxvk {
     { R"(\\HatinTimeGame\.exe$)", {{
       { "d3d9.strictPow",                   "False" },
       { "d3d9.lenientClear",                "True" },
+    }} },
+    /* Turtle WoW: Enlarge hardware cursor into 4X size and enable deviceLossOnFocusLoss for AMD FSR multiboxing on WINE */
+    { R"(\\WoW(_sideload-DLL|_tweaked)?\.exe$)", {{
+      { "d3d9.enlargeHardwareCursor",       "4" },
+      { "d3d9.deviceLossOnFocusLoss",       "True" },
     }} },
     /* Anarchy Online                             */
     { R"(\\anarchyonline\.exe$)", {{
