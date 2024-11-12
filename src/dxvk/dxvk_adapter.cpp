@@ -55,14 +55,14 @@ namespace dxvk {
       if (m_hasMemoryBudget) {
         // Handle DXVK's memory allocations separately so that
         // freeing  resources actually is visible to applications.
-        VkDeviceSize allocated = m_memoryAllocated[i].load();
-        VkDeviceSize used = m_memoryUsed[i].load();
+        VkDeviceSize allocated = m_memoryStats[i].allocated.load();
+        VkDeviceSize used = m_memoryStats[i].used.load();
 
         info.heaps[i].memoryBudget    = memBudget.heapBudget[i];
         info.heaps[i].memoryAllocated = std::max(memBudget.heapUsage[i], allocated) - allocated + used;
       } else {
         info.heaps[i].memoryBudget    = memProps.memoryProperties.memoryHeaps[i].size;
-        info.heaps[i].memoryAllocated = m_memoryUsed[i].load();
+        info.heaps[i].memoryAllocated = m_memoryStats[i].used.load();
       }
     }
 
@@ -293,6 +293,11 @@ namespace dxvk {
       enabledFeatures.vk12.bufferDeviceAddress = VK_TRUE;
     }
 
+    // If we don't have pageable device memory support, at least use
+    // the legacy AMD extension to ensure we can oversubscribe VRAM
+    if (!m_deviceExtensions.supports(devExtensions.extPageableDeviceLocalMemory.name()))
+      devExtensions.amdMemoryOverallocationBehaviour.setMode(DxvkExtMode::Optional);
+
     DxvkNameSet extensionsEnabled;
 
     if (!m_deviceExtensions.enableExtensions(
@@ -307,6 +312,10 @@ namespace dxvk {
 
     // Always enable robust buffer access
     enabledFeatures.core.features.robustBufferAccess = VK_TRUE;
+
+    // Always enable features used by the HUD
+    enabledFeatures.core.features.multiDrawIndirect = VK_TRUE;
+    enabledFeatures.vk11.shaderDrawParameters = VK_TRUE;
 
     // Enable variable multisample rate if supported
     enabledFeatures.core.features.variableMultisampleRate =
@@ -383,9 +392,12 @@ namespace dxvk {
         m_deviceFeatures.extLineRasterization.smoothLines;
     }
 
-    // Enable memory priority if supported to improve memory management
+    // Enable memory priority and pageable memory if supported
+    // to improve driver-side memory management
     enabledFeatures.extMemoryPriority.memoryPriority =
       m_deviceFeatures.extMemoryPriority.memoryPriority;
+    enabledFeatures.extPageableDeviceLocalMemory.pageableDeviceLocalMemory =
+      m_deviceFeatures.extPageableDeviceLocalMemory.pageableDeviceLocalMemory;
 
     // Require robustBufferAccess2 since we use the robustness alignment
     // info in a number of places, and require null descriptor support
@@ -584,6 +596,10 @@ namespace dxvk {
           enabledFeatures.extNonSeamlessCubeMap = *reinterpret_cast<const VkPhysicalDeviceNonSeamlessCubeMapFeaturesEXT*>(f);
           break;
 
+        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PAGEABLE_DEVICE_LOCAL_MEMORY_FEATURES_EXT:
+          enabledFeatures.extPageableDeviceLocalMemory = *reinterpret_cast<const VkPhysicalDevicePageableDeviceLocalMemoryFeaturesEXT*>(f);
+          break;
+
         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT:
           enabledFeatures.extRobustness2 = *reinterpret_cast<const VkPhysicalDeviceRobustness2FeaturesEXT*>(f);
           break;
@@ -654,19 +670,14 @@ namespace dxvk {
   }
 
 
-  void DxvkAdapter::notifyMemoryAlloc(
+  void DxvkAdapter::notifyMemoryStats(
           uint32_t            heap,
-          int64_t             bytes) {
-    if (heap < m_memoryAllocated.size())
-      m_memoryAllocated[heap] += bytes;
-  }
-
-
-  void DxvkAdapter::notifyMemoryUse(
-          uint32_t            heap,
-          int64_t             bytes) {
-    if (heap < m_memoryUsed.size())
-      m_memoryUsed[heap] += bytes;
+          int64_t             allocated,
+          int64_t             used) {
+    if (heap < m_memoryStats.size()) {
+      m_memoryStats[heap].allocated += allocated;
+      m_memoryStats[heap].used += used;
+    }
   }
 
 
@@ -877,6 +888,11 @@ namespace dxvk {
       m_deviceFeatures.extNonSeamlessCubeMap.pNext = std::exchange(m_deviceFeatures.core.pNext, &m_deviceFeatures.extNonSeamlessCubeMap);
     }
 
+    if (m_deviceExtensions.supports(VK_EXT_PAGEABLE_DEVICE_LOCAL_MEMORY_EXTENSION_NAME)) {
+      m_deviceFeatures.extPageableDeviceLocalMemory.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PAGEABLE_DEVICE_LOCAL_MEMORY_FEATURES_EXT;
+      m_deviceFeatures.extPageableDeviceLocalMemory.pNext = std::exchange(m_deviceFeatures.core.pNext, &m_deviceFeatures.extPageableDeviceLocalMemory);
+    }
+
     if (m_deviceExtensions.supports(VK_EXT_ROBUSTNESS_2_EXTENSION_NAME)) {
       m_deviceFeatures.extRobustness2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT;
       m_deviceFeatures.extRobustness2.pNext = std::exchange(m_deviceFeatures.core.pNext, &m_deviceFeatures.extRobustness2);
@@ -994,6 +1010,7 @@ namespace dxvk {
       &devExtensions.extMemoryBudget,
       &devExtensions.extMemoryPriority,
       &devExtensions.extNonSeamlessCubeMap,
+      &devExtensions.extPageableDeviceLocalMemory,
       &devExtensions.extRobustness2,
       &devExtensions.extShaderModuleIdentifier,
       &devExtensions.extShaderStencilExport,
@@ -1095,14 +1112,19 @@ namespace dxvk {
       enabledFeatures.extNonSeamlessCubeMap.pNext = std::exchange(enabledFeatures.core.pNext, &enabledFeatures.extNonSeamlessCubeMap);
     }
 
-    if (devExtensions.extShaderModuleIdentifier) {
-      enabledFeatures.extShaderModuleIdentifier.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_MODULE_IDENTIFIER_FEATURES_EXT;
-      enabledFeatures.extShaderModuleIdentifier.pNext = std::exchange(enabledFeatures.core.pNext, &enabledFeatures.extShaderModuleIdentifier);
+    if (devExtensions.extPageableDeviceLocalMemory) {
+      enabledFeatures.extPageableDeviceLocalMemory.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PAGEABLE_DEVICE_LOCAL_MEMORY_FEATURES_EXT;
+      enabledFeatures.extPageableDeviceLocalMemory.pNext = std::exchange(enabledFeatures.core.pNext, &enabledFeatures.extPageableDeviceLocalMemory);
     }
 
     if (devExtensions.extRobustness2) {
       enabledFeatures.extRobustness2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT;
       enabledFeatures.extRobustness2.pNext = std::exchange(enabledFeatures.core.pNext, &enabledFeatures.extRobustness2);
+    }
+
+    if (devExtensions.extShaderModuleIdentifier) {
+      enabledFeatures.extShaderModuleIdentifier.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_MODULE_IDENTIFIER_FEATURES_EXT;
+      enabledFeatures.extShaderModuleIdentifier.pNext = std::exchange(enabledFeatures.core.pNext, &enabledFeatures.extShaderModuleIdentifier);
     }
 
     if (devExtensions.extShaderStencilExport)
@@ -1276,6 +1298,8 @@ namespace dxvk {
       "\n  memoryPriority                         : ", features.extMemoryPriority.memoryPriority ? "1" : "0",
       "\n", VK_EXT_NON_SEAMLESS_CUBE_MAP_EXTENSION_NAME,
       "\n  nonSeamlessCubeMap                     : ", features.extNonSeamlessCubeMap.nonSeamlessCubeMap ? "1" : "0",
+      "\n", VK_EXT_PAGEABLE_DEVICE_LOCAL_MEMORY_EXTENSION_NAME,
+      "\n  pageableDeviceLocalMemory              : ", features.extPageableDeviceLocalMemory.pageableDeviceLocalMemory ? "1" : "0",
       "\n", VK_EXT_ROBUSTNESS_2_EXTENSION_NAME,
       "\n  robustBufferAccess2                    : ", features.extRobustness2.robustBufferAccess2 ? "1" : "0",
       "\n  robustImageAccess2                     : ", features.extRobustness2.robustImageAccess2 ? "1" : "0",

@@ -30,6 +30,7 @@
 #include "util_likely.h"
 #include "util_math.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <iterator>
@@ -152,6 +153,18 @@ namespace dxvk::bit {
     #endif
   }
 
+  inline uint32_t lzcnt(uint64_t n) {
+    #if defined(DXVK_ARCH_X86_64) && ((defined(_MSC_VER) && !defined(__clang__)) || defined(__LZCNT__))
+    return _lzcnt_u64(n);
+    #elif defined(DXVK_ARCH_X86_64) && (defined(__GNUC__) || defined(__clang__))
+    return n != 0 ? __builtin_clzll(n) : 64;
+    #else
+    uint32_t lo = uint32_t(n);
+    uint32_t hi = uint32_t(n >> 32u);
+    return hi ? lzcnt(hi) : lzcnt(lo) + 32u;
+    #endif
+  }
+
   template<typename T>
   uint32_t pack(T& dst, uint32_t& shift, T src, uint32_t count) {
     constexpr uint32_t Bits = 8 * sizeof(T);
@@ -169,6 +182,37 @@ namespace dxvk::bit {
     shift += count;
     return shift > Bits ? shift - Bits : 0;
   }
+
+
+  /**
+   * \brief Clears cache lines of memory
+   *
+   * Uses non-temporal stores. The memory region offset
+   * and size are assumed to be aligned to 64 bytes.
+   * \param [in] mem Memory region to clear
+   * \param [in] size Number of bytes to clear
+   */
+  inline void bclear(void* mem, size_t size) {
+    #if defined(DXVK_ARCH_X86) && (defined(__GNUC__) || defined(__clang__) || defined(_MSC_VER))
+    auto zero = _mm_setzero_si128();
+
+    #if defined(__clang__)
+    #pragma nounroll
+    #elif defined(__GNUC__)
+    #pragma GCC unroll 0
+    #endif
+    for (size_t i = 0; i < size; i += 64u) {
+      auto* ptr = reinterpret_cast<__m128i*>(mem) + i / sizeof(zero);
+      _mm_stream_si128(ptr + 0u, zero);
+      _mm_stream_si128(ptr + 1u, zero);
+      _mm_stream_si128(ptr + 2u, zero);
+      _mm_stream_si128(ptr + 3u, zero);
+    }
+    #else
+    std::memset(mem, 0, size);
+    #endif
+  }
+
 
   /**
    * \brief Compares two aligned structs bit by bit
@@ -517,4 +561,61 @@ namespace dxvk::bit {
     uint32_t m_mask;
 
   };
+
+
+  /**
+   * \brief Encodes float as fixed point
+   *
+   * Rounds away from zero. If this is not suitable for
+   * certain use cases, implement round to nearest even.
+   * \tparam T Integer type, may be signed
+   * \tparam I Integer bits
+   * \tparam F Fractional bits
+   * \param n Float to encode
+   * \returns Encoded fixed-point value
+   */
+  template<typename T, int32_t I, int32_t F>
+  T encodeFixed(float n) {
+    if (n != n)
+      return 0u;
+
+    n *= float(1u << F);
+
+    if constexpr (std::is_signed_v<T>) {
+      n = std::max(n, -float(1u << (I + F - 1u)));
+      n = std::min(n,  float(1u << (I + F - 1u)) - 1.0f);
+      n += n < 0.0f ? -0.5f : 0.5f;
+    } else {
+      n = std::max(n, 0.0f);
+      n = std::min(n, float(1u << (I + F)) - 1.0f);
+      n += 0.5f;
+    }
+
+    T result = T(n);
+
+    if constexpr (std::is_signed_v<T>)
+      result &= ((T(1u) << (I + F)) - 1u);
+
+    return result;
+  }
+
+
+  /**
+   * \brief Decodes fixed-point integer to float
+   *
+   * \tparam T Integer type, may be signed
+   * \tparam I Integer bits
+   * \tparam F Fractional bits
+   * \param n Number to decode
+   * \returns Decoded  number
+   */
+  template<typename T, int32_t I, int32_t F>
+  float decodeFixed(T n) {
+    // Sign-extend as necessary
+    if constexpr (std::is_signed_v<T>)
+      n -= (n & (T(1u) << (I + F - 1u))) << 1u;
+
+    return float(n) / float(1u << F);
+  }
+
 }

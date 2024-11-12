@@ -14,11 +14,11 @@ namespace dxvk {
     m_instance          (instance),
     m_adapter           (adapter),
     m_vkd               (vkd),
+    m_queues            (queues),
     m_features          (features),
     m_properties        (adapter->devicePropertiesExt()),
     m_perfHints         (getPerfHints()),
     m_objects           (this),
-    m_queues            (queues),
     m_submissionQueue   (this, queueCallback) {
 
   }
@@ -39,6 +39,61 @@ namespace dxvk {
     // Stop workers explicitly in order to prevent
     // access to structures that are being destroyed.
     m_objects.pipelineManager().stopWorkerThreads();
+  }
+
+
+  VkSubresourceLayout DxvkDevice::queryImageSubresourceLayout(
+    const DxvkImageCreateInfo&        createInfo,
+    const VkImageSubresource&         subresource) {
+    VkImageFormatListCreateInfo formatList = { VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO };
+
+    VkImageCreateInfo info = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+    info.flags = createInfo.flags;
+    info.imageType = createInfo.type;
+    info.format = createInfo.format;
+    info.extent = createInfo.extent;
+    info.mipLevels = createInfo.mipLevels;
+    info.arrayLayers = createInfo.numLayers;
+    info.samples = createInfo.sampleCount;
+    info.tiling = VK_IMAGE_TILING_LINEAR;
+    info.usage = createInfo.usage;
+    info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+
+    if (createInfo.viewFormatCount && (createInfo.viewFormatCount > 1u || createInfo.viewFormats[0] != createInfo.format)) {
+      formatList.viewFormatCount = createInfo.viewFormatCount;
+      formatList.pViewFormats = createInfo.viewFormats;
+
+      info.pNext = &formatList;
+    }
+
+    if (m_features.khrMaintenance5.maintenance5) {
+      VkImageSubresource2KHR subresourceInfo = { VK_STRUCTURE_TYPE_IMAGE_SUBRESOURCE_2_KHR };
+      subresourceInfo.imageSubresource = subresource;
+
+      VkDeviceImageSubresourceInfoKHR query = { VK_STRUCTURE_TYPE_DEVICE_IMAGE_SUBRESOURCE_INFO_KHR };
+      query.pCreateInfo = &info;
+      query.pSubresource = &subresourceInfo;
+
+      VkSubresourceLayout2KHR layout = { VK_STRUCTURE_TYPE_SUBRESOURCE_LAYOUT_2_KHR };
+      m_vkd->vkGetDeviceImageSubresourceLayoutKHR(m_vkd->device(), &query, &layout);
+      return layout.subresourceLayout;
+    } else {
+      // Technically, there is no guarantee that all images with the same
+      // properties are going to have consistent subresource layouts if
+      // maintenance5 is not supported, but the only such use case we care
+      // about is RenderDoc.
+      VkImage image = VK_NULL_HANDLE;
+      VkResult vr = m_vkd->vkCreateImage(m_vkd->device(), &info, nullptr, &image);
+
+      if (vr != VK_SUCCESS)
+        throw DxvkError(str::format("Failed to create temporary image: ", vr));
+
+      VkSubresourceLayout layout = { };
+      m_vkd->vkGetImageSubresourceLayout(m_vkd->device(), image, &subresource, &layout);
+      m_vkd->vkDestroyImage(m_vkd->device(), image, nullptr);
+      return layout;
+    }
   }
 
 
@@ -113,14 +168,6 @@ namespace dxvk {
 
     return result;
   }
-
-
-  DxvkDeviceOptions DxvkDevice::options() const {
-    DxvkDeviceOptions options;
-    options.maxNumDynamicUniformBuffers = m_properties.core.properties.limits.maxDescriptorSetUniformBuffersDynamic;
-    options.maxNumDynamicStorageBuffers = m_properties.core.properties.limits.maxDescriptorSetStorageBuffersDynamic;
-    return options;
-  }
   
   
   Rc<DxvkCommandList> DxvkDevice::createCommandList() {
@@ -133,21 +180,27 @@ namespace dxvk {
   }
 
 
-  Rc<DxvkContext> DxvkDevice::createContext(DxvkContextType type) {
-    return new DxvkContext(this, type);
+  Rc<DxvkContext> DxvkDevice::createContext() {
+    return new DxvkContext(this);
   }
 
 
-  Rc<DxvkGpuEvent> DxvkDevice::createGpuEvent() {
-    return new DxvkGpuEvent(m_vkd);
+  Rc<DxvkEvent> DxvkDevice::createGpuEvent() {
+    return new DxvkEvent(this);
   }
 
 
-  Rc<DxvkGpuQuery> DxvkDevice::createGpuQuery(
+  Rc<DxvkQuery> DxvkDevice::createGpuQuery(
           VkQueryType           type,
           VkQueryControlFlags   flags,
           uint32_t              index) {
-    return new DxvkGpuQuery(m_vkd, type, flags, index);
+    return new DxvkQuery(this, type, flags, index);
+  }
+
+
+  Rc<DxvkGpuQuery> DxvkDevice::createRawQuery(
+          VkQueryType           type) {
+    return m_objects.queryPool().allocQuery(type);
   }
 
 
@@ -164,13 +217,6 @@ namespace dxvk {
   }
   
   
-  Rc<DxvkBufferView> DxvkDevice::createBufferView(
-    const Rc<DxvkBuffer>&           buffer,
-    const DxvkBufferViewCreateInfo& createInfo) {
-    return new DxvkBufferView(this, buffer, createInfo);
-  }
-  
-  
   Rc<DxvkImage> DxvkDevice::createImage(
     const DxvkImageCreateInfo&  createInfo,
           VkMemoryPropertyFlags memoryType) {
@@ -178,19 +224,19 @@ namespace dxvk {
   }
   
   
-  Rc<DxvkImageView> DxvkDevice::createImageView(
-    const Rc<DxvkImage>&            image,
-    const DxvkImageViewCreateInfo&  createInfo) {
-    return new DxvkImageView(m_vkd, image, createInfo);
-  }
-  
-  
   Rc<DxvkSampler> DxvkDevice::createSampler(
-    const DxvkSamplerCreateInfo&  createInfo) {
-    return new DxvkSampler(this, createInfo);
+    const DxvkSamplerKey&         createInfo) {
+    return m_objects.samplerPool().createSampler(createInfo);
   }
-  
-  
+
+
+  DxvkLocalAllocationCache DxvkDevice::createAllocationCache(
+          VkBufferUsageFlags    bufferUsage,
+          VkMemoryPropertyFlags propertyFlags) {
+    return m_objects.memoryManager().createAllocationCache(bufferUsage, propertyFlags);
+  }
+
+
   Rc<DxvkSparsePageAllocator> DxvkDevice::createSparsePageAllocator() {
     return new DxvkSparsePageAllocator(m_objects.memoryManager());
   }
@@ -218,7 +264,8 @@ namespace dxvk {
     const DxvkBufferCreateInfo& createInfo,
     const DxvkBufferImportInfo& importInfo,
           VkMemoryPropertyFlags memoryType) {
-    return new DxvkBuffer(this, createInfo, importInfo, memoryType);
+    return new DxvkBuffer(this, createInfo,
+      importInfo, m_objects.memoryManager(), memoryType);
   }
 
 
@@ -226,12 +273,19 @@ namespace dxvk {
     const DxvkImageCreateInfo&  createInfo,
           VkImage               image,
           VkMemoryPropertyFlags memoryType) {
-    return new DxvkImage(this, createInfo, image, memoryType);
+    return new DxvkImage(this, createInfo, image,
+      m_objects.memoryManager(), memoryType);
   }
 
 
   DxvkMemoryStats DxvkDevice::getMemoryStats(uint32_t heap) {
     return m_objects.memoryManager().getMemoryStats(heap);
+  }
+
+
+  DxvkSharedAllocationCacheStats DxvkDevice::getMemoryAllocationStats(DxvkMemoryAllocationStats& stats) {
+    m_objects.memoryManager().getAllocationStats(stats);
+    return m_objects.memoryManager().getAllocationCacheStats();
   }
 
 
@@ -293,12 +347,28 @@ namespace dxvk {
   }
 
 
-  void DxvkDevice::waitForResource(const Rc<DxvkResource>& resource, DxvkAccess access) {
-    if (resource->isInUse(access)) {
+  void DxvkDevice::waitForFence(sync::Fence& fence, uint64_t value) {
+    if (fence.value() >= value)
+      return;
+
+    auto t0 = dxvk::high_resolution_clock::now();
+
+    fence.wait(value);
+
+    auto t1 = dxvk::high_resolution_clock::now();
+    auto us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0);
+
+    m_statCounters.addCtr(DxvkStatCounter::GpuSyncCount, 1);
+    m_statCounters.addCtr(DxvkStatCounter::GpuSyncTicks, us.count());
+  }
+
+
+  void DxvkDevice::waitForResource(const DxvkPagedResource& resource, DxvkAccess access) {
+    if (resource.isInUse(access)) {
       auto t0 = dxvk::high_resolution_clock::now();
 
-      m_submissionQueue.synchronizeUntil([resource, access] {
-        return !resource->isInUse(access);
+      m_submissionQueue.synchronizeUntil([&resource, access] {
+        return !resource.isInUse(access);
       });
 
       auto t1 = dxvk::high_resolution_clock::now();
@@ -331,6 +401,10 @@ namespace dxvk {
     hints.preferFbResolve = m_features.amdShaderFragmentMask
       && (m_adapter->matchesDriver(VK_DRIVER_ID_AMD_OPEN_SOURCE_KHR)
        || m_adapter->matchesDriver(VK_DRIVER_ID_AMD_PROPRIETARY_KHR));
+    // Older Nvidia drivers sometimes use the wrong format
+    // to interpret the clear color in render pass clears.
+    hints.renderPassClearFormatBug = m_adapter->matchesDriver(
+      VK_DRIVER_ID_NVIDIA_PROPRIETARY, Version(), Version(560, 28, 3));
     return hints;
   }
 
