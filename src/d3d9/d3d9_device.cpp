@@ -652,10 +652,15 @@ namespace dxvk {
     Logger::info("Device reset");
     m_deviceLostState = D3D9DeviceLostState::Ok;
 
-    HRESULT hr = m_parent->ValidatePresentationParameters(pPresentationParameters);
+    HRESULT hr;
+    // Black Desert creates a D3DDEVTYPE_NULLREF device and
+    // expects reset to work despite passing invalid parameters.
+    if (likely(m_deviceType != D3DDEVTYPE_NULLREF)) {
+      hr = m_parent->ValidatePresentationParameters(pPresentationParameters);
 
-    if (unlikely(FAILED(hr)))
-      return hr;
+      if (unlikely(FAILED(hr)))
+        return hr;
+    }
 
     if (!IsExtended()) {
       // The internal references are always cleared, regardless of whether the Reset call succeeds.
@@ -1763,7 +1768,12 @@ namespace dxvk {
           IDirect3DSurface9* pRenderTarget) {
     D3D9DeviceLock lock = LockDevice();
 
-    if (unlikely((pRenderTarget == nullptr && RenderTargetIndex == 0)))
+    if (unlikely(pRenderTarget == nullptr && RenderTargetIndex == 0))
+      return D3DERR_INVALIDCALL;
+
+    // We need to make sure the render target was created using this device.
+    D3D9Surface* rt = static_cast<D3D9Surface*>(pRenderTarget);
+    if (unlikely(rt != nullptr && rt->GetDevice() != this))
       return D3DERR_INVALIDCALL;
 
     return SetRenderTargetInternal(RenderTargetIndex, pRenderTarget);
@@ -4236,7 +4246,7 @@ namespace dxvk {
     desc.IsAttachmentOnly   = TRUE;
     desc.IsLockable         = Lockable;
 
-    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, D3DRTYPE_TEXTURE, &desc)))
+    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, D3DRTYPE_SURFACE, &desc)))
       return D3DERR_INVALIDCALL;
 
     try {
@@ -4284,7 +4294,7 @@ namespace dxvk {
     // Docs: Off-screen plain surfaces are always lockable, regardless of their pool types.
     desc.IsLockable         = TRUE;
 
-    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, D3DRTYPE_TEXTURE, &desc)))
+    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, D3DRTYPE_SURFACE, &desc)))
       return D3DERR_INVALIDCALL;
 
     if (pSharedHandle != nullptr && Pool != D3DPOOL_DEFAULT)
@@ -4338,7 +4348,7 @@ namespace dxvk {
     desc.IsAttachmentOnly   = TRUE;
     desc.IsLockable         = IsLockableDepthStencilFormat(desc.Format);
 
-    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, D3DRTYPE_TEXTURE, &desc)))
+    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, D3DRTYPE_SURFACE, &desc)))
       return D3DERR_INVALIDCALL;
 
     try {
@@ -5151,9 +5161,13 @@ namespace dxvk {
 
     UINT Subresource = pResource->CalcSubresource(Face, MipLevel);
 
-    // We weren't locked anyway!
-    if (unlikely(!pResource->GetLocked(Subresource)))
-      return D3D_OK;
+    // Don't allow multiple unlockings, except for D3DRTYPE_TEXTURE
+    if (unlikely(!pResource->GetLocked(Subresource))) {
+      if (pResource->GetType() == D3DRTYPE_TEXTURE)
+        return D3D_OK;
+      else
+        return D3DERR_INVALIDCALL;
+    }
 
     MapTexture(pResource, Subresource); // Add it to the list of mapped resources
     pResource->SetLocked(Subresource, false);
@@ -8480,12 +8494,12 @@ namespace dxvk {
       "    - Windowed:           ", pPresentationParameters->Windowed ? "true" : "false", "\n",
       "    - Swap effect:        ", pPresentationParameters->SwapEffect, "\n"));
 
-    // Black Desert creates a device with a NULL hDeviceWindow and
-    // seemingly expects this validation to not prevent a swapchain reset.
-    if (pPresentationParameters->hDeviceWindow != nullptr &&
-       !pPresentationParameters->Windowed &&
-       (pPresentationParameters->BackBufferWidth  == 0
-     || pPresentationParameters->BackBufferHeight == 0)) {
+    // Black Desert creates a D3DDEVTYPE_NULLREF device and
+    // expects this validation to not prevent a swapchain reset.
+    if (likely(m_deviceType != D3DDEVTYPE_NULLREF) &&
+        unlikely(!pPresentationParameters->Windowed &&
+                 (pPresentationParameters->BackBufferWidth  == 0
+               || pPresentationParameters->BackBufferHeight == 0))) {
       return D3DERR_INVALIDCALL;
     }
 
@@ -8524,7 +8538,7 @@ namespace dxvk {
       desc.IsAttachmentOnly   = TRUE;
       desc.IsLockable         = IsLockableDepthStencilFormat(desc.Format);
 
-      if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, D3DRTYPE_TEXTURE, &desc)))
+      if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, D3DRTYPE_SURFACE, &desc)))
         return D3DERR_NOTAVAILABLE;
 
       m_autoDepthStencil = new D3D9Surface(this, &desc, nullptr, nullptr);
