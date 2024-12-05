@@ -5959,7 +5959,7 @@ namespace dxvk {
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         getSpecConstantBufferSlot(),
-        sizeof(D3D9SpecializationInfo));
+        D3D9SpecializationInfo::UBOSize);
     }
   }
 
@@ -6109,11 +6109,22 @@ namespace dxvk {
     auto mapPtr = m_vsClipPlanes.AllocSlice();
     auto dst = reinterpret_cast<D3D9ClipPlane*>(mapPtr);
 
+    uint32_t clipPlaneCount = 0u;
     for (uint32_t i = 0; i < caps::MaxClipPlanes; i++) {
-      dst[i] = (m_state.renderStates[D3DRS_CLIPPLANEENABLE] & (1 << i))
+      D3D9ClipPlane clipPlane = (m_state.renderStates[D3DRS_CLIPPLANEENABLE] & (1 << i))
         ? m_state.clipPlanes[i]
         : D3D9ClipPlane();
+
+      if (clipPlane != D3D9ClipPlane())
+        dst[clipPlaneCount++] = clipPlane;
     }
+
+    // Write the rest to 0 for GPL.
+    for (uint32_t i = clipPlaneCount; i < caps::MaxClipPlanes; i++)
+      dst[i] = D3D9ClipPlane();
+
+    if (m_specInfo.set<SpecClipPlaneCount>(clipPlaneCount))
+      m_flags.set(D3D9DeviceFlag::DirtySpecializationEntries);
   }
 
 
@@ -8765,8 +8776,7 @@ namespace dxvk {
     if (m_usingGraphicsPipelines) {
       // TODO: Make uploading specialization information less naive.
       auto mapPtr = m_specBuffer.AllocSlice();
-      auto dst = reinterpret_cast<D3D9SpecializationInfo*>(mapPtr);
-      *dst = m_specInfo;
+      memcpy(mapPtr, m_specInfo.data.data(), D3D9SpecializationInfo::UBOSize);
     }
 
     m_flags.clr(D3D9DeviceFlag::DirtySpecializationEntries);
