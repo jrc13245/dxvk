@@ -503,7 +503,8 @@ namespace dxvk {
        The Sims Life Stories,
        The Sims Pet Stories,
        and The Sims Castaway Stories             */
-    { R"(\\(Sims2.*|TS2BodyShop|SimsLS|SimsPS|SimsCS)\.exe$)", {{
+    { R"(\\(Sims2.*|TS2BodyShop|SimsLS|SimsPS|SimsCS)"
+      R"(|The Sims 2 Content Manager|TS2HomeCrafterPlus)\.exe$)", {{
       { "d3d9.customVendorId",              "10de" },
       { "d3d9.customDeviceId",              "0091" },
       { "d3d9.customDeviceDesc",            "GeForce 7800 GTX" },
@@ -1012,6 +1013,10 @@ namespace dxvk {
     /* Alpha Protocol - Rids unwanted reflections  */
     { R"(\\APGame\.exe$)", {{
       { "d3d9.forceSamplerTypeSpecConstants", "True" },
+    }} },
+    /* Dark Sector - Crashes in places             */
+    { R"(\\DS\.exe$)", {{
+      { "d3d9.textureMemory",                "0" },
     }} },
 
     /**********************************************/
