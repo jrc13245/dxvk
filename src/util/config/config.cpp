@@ -453,6 +453,11 @@ namespace dxvk {
     { R"(\\x86_64\\Warcraft III\.exe$)", {{
       { "dxvk.hideIntegratedGraphics",      "True"  },
     }} },
+    /* Earth Defense Force 5 */
+    { R"(\\EDF5\.exe$)", {{
+      { "dxgi.tearFree",                    "False" },
+      { "dxgi.syncInterval",                "1"     },
+    }} },
 
     /**********************************************/
     /* D3D9 GAMES                                 */
@@ -655,11 +660,6 @@ namespace dxvk {
     /* Far Cry 1 has worse water rendering when it detects AMD GPUs */
     { R"(\\FarCry\.exe$)", {{
       { "d3d9.customVendorId",              "10de" },
-    }} },
-    /* Earth Defense Force 5 */
-    { R"(\\EDF5\.exe$)", {{
-      { "dxgi.tearFree",                    "False" },
-      { "dxgi.syncInterval",                "1"     },
     }} },
     /* Sine Mora EX */
     { R"(\\SineMoraEX\.exe$)", {{
@@ -1009,10 +1009,6 @@ namespace dxvk {
     { R"(\\(FarCry2|farcry2game)\.exe$)", {{
       { "d3d9.customVendorId",              "10de" },
       { "d3d9.cachedDynamicBuffers",        "True" },
-    }} },
-    /* Alpha Protocol - Rids unwanted reflections  */
-    { R"(\\APGame\.exe$)", {{
-      { "d3d9.forceSamplerTypeSpecConstants", "True" },
     }} },
     /* Dark Sector - Crashes in places             */
     { R"(\\DS\.exe$)", {{
@@ -1504,6 +1500,8 @@ namespace dxvk {
     }
 
     if (!confLine.empty()) {
+      ctx.active = true;
+
       // Inform the user that we parsing config from environment, might
       // help when debugging configuration issues
       Logger::info(str::format("Found config env: ", confLine));
