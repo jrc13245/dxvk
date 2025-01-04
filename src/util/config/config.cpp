@@ -453,10 +453,15 @@ namespace dxvk {
     { R"(\\x86_64\\Warcraft III\.exe$)", {{
       { "dxvk.hideIntegratedGraphics",      "True"  },
     }} },
-    /* Earth Defense Force 5 */
+    /* Earth Defense Force 5                       */
     { R"(\\EDF5\.exe$)", {{
       { "dxgi.tearFree",                    "False" },
       { "dxgi.syncInterval",                "1"     },
+    }} },
+    /* The Hurricane of the Varstray               *
+     * Too fast above 60fps                        */
+    { R"(\\Varstray_steam(_demo)?\.exe$)", {{
+      { "dxgi.maxFrameRate",                "60" },
     }} },
 
     /**********************************************/
@@ -1013,6 +1018,11 @@ namespace dxvk {
     /* Dark Sector - Crashes in places             */
     { R"(\\DS\.exe$)", {{
       { "d3d9.textureMemory",                "0" },
+    }} },
+    /* Arcana Heart 3 Love Max + Xtend version     *
+     * Game speed is too fast above 60 fps         */
+    { R"(\\(AH3LM|AALib)\.exe$)", {{
+      { "d3d9.maxFrameRate",                "60" },
     }} },
 
     /**********************************************/
