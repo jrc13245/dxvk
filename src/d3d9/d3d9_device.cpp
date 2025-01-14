@@ -77,7 +77,7 @@ namespace dxvk {
     if (canSWVP)
       Logger::info("D3D9DeviceEx: Using extended constant set for software vertex processing.");
 
-    if (m_dxvkDevice->instance()->extensions().extDebugUtils)
+    if (m_dxvkDevice->isDebugEnabled())
       m_annotation = new D3D9UserDefinedAnnotation(this);
 
     m_initializer      = new D3D9Initializer(this);
@@ -4752,6 +4752,7 @@ namespace dxvk {
       info.access = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT
                   | VK_ACCESS_INDEX_READ_BIT;
       info.stages = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+      info.debugName = "UP buffer";
 
       Rc<DxvkBuffer> buffer = m_dxvkDevice->createBuffer(info, memoryFlags);
       void* mapPtr = buffer->mapPtr(0);
