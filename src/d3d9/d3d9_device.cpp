@@ -715,7 +715,7 @@ namespace dxvk {
     SynchronizeCsThread(DxvkCsThread::SynchronizeAll);
 
     if (m_d3d9Options.deferSurfaceCreation)
-      m_deviceHasBeenReset = true;
+      m_resetCtr++;
 
     return D3D_OK;
   }
