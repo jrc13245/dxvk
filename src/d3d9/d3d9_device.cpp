@@ -3490,6 +3490,20 @@ namespace dxvk {
     if (unlikely(ppShader == nullptr))
       return D3DERR_INVALIDCALL;
 
+    const uint32_t majorVersion = (pFunction[0] >> 8) & 0xff;
+    const uint32_t minorVersion = pFunction[0] & 0xff;
+
+    // Late fixed-function capable hardware exposed support for VS 1.1
+    const uint32_t shaderModelVS = m_d3d9Options.shaderModel == 0 ? 1 : m_d3d9Options.shaderModel;
+
+    if (unlikely(majorVersion > shaderModelVS
+             || (majorVersion == 1 && minorVersion > 1)
+             // Skip checking the SM2 minor version, as it has a 2_x mode apparently
+             || (majorVersion == 3 && minorVersion != 0))) {
+      Logger::err(str::format("D3D9DeviceEx::CreateVertexShader: Unsupported VS version ", majorVersion, ".", minorVersion));
+      return D3DERR_INVALIDCALL;
+    }
+
     DxsoModuleInfo moduleInfo;
     moduleInfo.options = m_dxsoOptions;
 
@@ -3853,6 +3867,17 @@ namespace dxvk {
 
     if (unlikely(ppShader == nullptr))
       return D3DERR_INVALIDCALL;
+
+    const uint32_t majorVersion = (pFunction[0] >> 8) & 0xff;
+    const uint32_t minorVersion = pFunction[0] & 0xff;
+
+    if (unlikely(majorVersion > m_d3d9Options.shaderModel
+             || (majorVersion == 1 && minorVersion > 4)
+             // Skip checking the SM2 minor version, as it has a 2_x mode apparently
+             || (majorVersion == 3 && minorVersion != 0))) {
+      Logger::err(str::format("D3D9DeviceEx::CreatePixelShader: Unsupported PS version ", majorVersion, ".", minorVersion));
+      return D3DERR_INVALIDCALL;
+    }
 
     DxsoModuleInfo moduleInfo;
     moduleInfo.options = m_dxsoOptions;
@@ -4446,7 +4471,7 @@ namespace dxvk {
     m_implicitSwapchain->Invalidate(pPresentationParameters->hDeviceWindow);
 
     try {
-      auto* swapchain = new D3D9SwapChainEx(this, pPresentationParameters, pFullscreenDisplayMode);
+      auto* swapchain = new D3D9SwapChainEx(this, pPresentationParameters, pFullscreenDisplayMode, false);
       *ppSwapChain = ref(swapchain);
       m_losableResourceCounter++;
     }
@@ -5825,7 +5850,7 @@ namespace dxvk {
   void D3D9DeviceEx::InjectCsChunk(
           DxvkCsChunkRef&&            Chunk,
           bool                        Synchronize) {
-    m_csThread.injectChunk(std::move(Chunk), Synchronize);
+    m_csThread.injectChunk(DxvkCsQueue::HighPriority, std::move(Chunk), Synchronize);
   }
 
 
@@ -6274,11 +6299,29 @@ namespace dxvk {
   }
 
 
-  void D3D9DeviceEx::EndFrame() {
+  void D3D9DeviceEx::BeginFrame(Rc<DxvkLatencyTracker> LatencyTracker, uint64_t FrameId) {
     D3D9DeviceLock lock = LockDevice();
 
-    EmitCs<false>([] (DxvkContext* ctx) {
+    EmitCs<false>([
+      cTracker = std::move(LatencyTracker),
+      cFrameId = FrameId
+    ] (DxvkContext* ctx) {
+      if (cTracker && cTracker->needsAutoMarkers())
+        ctx->beginLatencyTracking(cTracker, cFrameId);
+    });
+  }
+
+
+  void D3D9DeviceEx::EndFrame(Rc<DxvkLatencyTracker> LatencyTracker) {
+    D3D9DeviceLock lock = LockDevice();
+
+    EmitCs<false>([
+      cTracker = std::move(LatencyTracker)
+    ] (DxvkContext* ctx) {
       ctx->endFrame();
+
+      if (cTracker && cTracker->needsAutoMarkers())
+        ctx->endLatencyTracking(cTracker);
     });
   }
 
@@ -8621,7 +8664,7 @@ namespace dxvk {
         return hr;
     }
     else {
-      m_implicitSwapchain = new D3D9SwapChainEx(this, pPresentationParameters, pFullscreenDisplayMode);
+      m_implicitSwapchain = new D3D9SwapChainEx(this, pPresentationParameters, pFullscreenDisplayMode, true);
       m_mostRecentlyUsedSwapchain = m_implicitSwapchain.ptr();
     }
 

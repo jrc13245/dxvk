@@ -861,11 +861,17 @@ namespace dxvk {
   }
   
   
-  void D3D11ImmediateContext::EndFrame() {
+  void D3D11ImmediateContext::EndFrame(
+          Rc<DxvkLatencyTracker>      LatencyTracker) {
     D3D10DeviceLock lock = LockContext();
 
-    EmitCs<false>([] (DxvkContext* ctx) {
+    EmitCs<false>([
+      cTracker = std::move(LatencyTracker)
+    ] (DxvkContext* ctx) {
       ctx->endFrame();
+
+      if (cTracker && cTracker->needsAutoMarkers())
+        ctx->endLatencyTracking(cTracker);
     });
   }
 
@@ -914,11 +920,12 @@ namespace dxvk {
   
   
   void D3D11ImmediateContext::InjectCsChunk(
+          DxvkCsQueue                 Queue,
           DxvkCsChunkRef&&            Chunk,
           bool                        Synchronize) {
     // Do not update the sequence number when emitting a chunk
     // from an external source since that would break tracking
-    m_csThread.injectChunk(std::move(Chunk), Synchronize);
+    m_csThread.injectChunk(Queue, std::move(Chunk), Synchronize);
   }
 
 

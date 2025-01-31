@@ -1,5 +1,7 @@
 #include "dxvk_device.h"
 #include "dxvk_instance.h"
+#include "dxvk_latency_builtin.h"
+#include "dxvk_latency_reflex.h"
 
 namespace dxvk {
   
@@ -305,14 +307,37 @@ namespace dxvk {
   }
 
 
+  Rc<DxvkLatencyTracker> DxvkDevice::createLatencyTracker(
+    const Rc<Presenter>&            presenter) {
+    if (m_options.latencySleep == Tristate::False)
+      return nullptr;
+
+    if (m_options.latencySleep == Tristate::Auto) {
+      if (m_features.nvLowLatency2)
+        return new DxvkReflexLatencyTrackerNv(presenter);
+      else
+        return nullptr;
+    }
+
+    return new DxvkBuiltInLatencyTracker(presenter,
+      m_options.latencyTolerance, m_features.nvLowLatency2);
+  }
+
+
   void DxvkDevice::presentImage(
     const Rc<Presenter>&            presenter,
+    const Rc<DxvkLatencyTracker>&   tracker,
           uint64_t                  frameId,
           DxvkSubmitStatus*         status) {
     DxvkPresentInfo presentInfo = { };
     presentInfo.presenter = presenter;
     presentInfo.frameId = frameId;
-    m_submissionQueue.present(presentInfo, status);
+
+    DxvkLatencyInfo latencyInfo;
+    latencyInfo.tracker = tracker;
+    latencyInfo.frameId = frameId;
+
+    m_submissionQueue.present(presentInfo, latencyInfo, status);
     
     std::lock_guard<sync::Spinlock> statLock(m_statLock);
     m_statCounters.addCtr(DxvkStatCounter::QueuePresentCount, 1);
@@ -321,10 +346,17 @@ namespace dxvk {
 
   void DxvkDevice::submitCommandList(
     const Rc<DxvkCommandList>&      commandList,
+    const Rc<DxvkLatencyTracker>&   tracker,
+          uint64_t                  frameId,
           DxvkSubmitStatus*         status) {
     DxvkSubmitInfo submitInfo = { };
     submitInfo.cmdList = commandList;
-    m_submissionQueue.submit(submitInfo, status);
+
+    DxvkLatencyInfo latencyInfo;
+    latencyInfo.tracker = tracker;
+    latencyInfo.frameId = frameId;
+
+    m_submissionQueue.submit(submitInfo, latencyInfo, status);
 
     std::lock_guard<sync::Spinlock> statLock(m_statLock);
     m_statCounters.merge(commandList->statCounters());
