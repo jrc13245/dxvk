@@ -3490,8 +3490,8 @@ namespace dxvk {
     if (unlikely(ppShader == nullptr))
       return D3DERR_INVALIDCALL;
 
-    const uint32_t majorVersion = (pFunction[0] >> 8) & 0xff;
-    const uint32_t minorVersion = pFunction[0] & 0xff;
+    const uint32_t majorVersion = D3DSHADER_VERSION_MAJOR(pFunction[0]);
+    const uint32_t minorVersion = D3DSHADER_VERSION_MINOR(pFunction[0]);
 
     // Late fixed-function capable hardware exposed support for VS 1.1
     const uint32_t shaderModelVS = m_d3d9Options.shaderModel == 0 ? 1 : m_d3d9Options.shaderModel;
@@ -3868,8 +3868,8 @@ namespace dxvk {
     if (unlikely(ppShader == nullptr))
       return D3DERR_INVALIDCALL;
 
-    const uint32_t majorVersion = (pFunction[0] >> 8) & 0xff;
-    const uint32_t minorVersion = pFunction[0] & 0xff;
+    const uint32_t majorVersion = D3DSHADER_VERSION_MAJOR(pFunction[0]);
+    const uint32_t minorVersion = D3DSHADER_VERSION_MINOR(pFunction[0]);
 
     if (unlikely(majorVersion > m_d3d9Options.shaderModel
              || (majorVersion == 1 && minorVersion > 4)
