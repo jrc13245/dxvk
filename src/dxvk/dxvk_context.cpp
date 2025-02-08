@@ -1038,9 +1038,40 @@ namespace dxvk {
     const Rc<DxvkBuffer>&           buffer) {
     auto slice = buffer->getSliceHandle();
 
-    m_cmd->cmdFillBuffer(DxvkCmdBuffer::InitBuffer,
-      slice.handle, slice.offset,
-      dxvk::align(slice.length, 4), 0);
+    // Buffer size may be misaligned, in which case we have
+    // to use a plain buffer copy to fill the last few bytes.
+    constexpr VkDeviceSize MinCopyAndFillSize = 1u << 20;
+
+    VkDeviceSize copySize = slice.length & 3u;
+    VkDeviceSize fillSize = slice.length - copySize;
+
+    // If the buffer is small, just dispatch one single copy
+    if (copySize && slice.length < MinCopyAndFillSize) {
+      copySize = slice.length;
+      fillSize = 0u;
+    }
+
+    if (fillSize) {
+      m_cmd->cmdFillBuffer(DxvkCmdBuffer::InitBuffer,
+        slice.handle, slice.offset, fillSize, 0u);
+    }
+
+    if (copySize) {
+      auto zero = createZeroBuffer(copySize)->getSliceHandle();
+
+      VkBufferCopy2 copyRegion = { VK_STRUCTURE_TYPE_BUFFER_COPY_2 };
+      copyRegion.srcOffset = zero.offset;
+      copyRegion.dstOffset = slice.offset + fillSize;
+      copyRegion.size      = copySize;
+
+      VkCopyBufferInfo2 copyInfo = { VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2 };
+      copyInfo.srcBuffer = zero.handle;
+      copyInfo.dstBuffer = slice.handle;
+      copyInfo.regionCount = 1;
+      copyInfo.pRegions = &copyRegion;
+
+      m_cmd->cmdCopyBuffer(DxvkCmdBuffer::InitBuffer, &copyInfo);
+    }
 
     accessMemory(DxvkCmdBuffer::InitBuffer,
       VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
@@ -1507,12 +1538,13 @@ namespace dxvk {
       for (uint32_t i = 0; i < m_state.om.framebufferInfo.numAttachments() && !found; i++)
         found = m_state.om.framebufferInfo.getAttachment(i).view->image() == image;
 
-      if (found)
+      if (found) {
         m_flags.set(DxvkContextFlag::GpDirtyFramebuffer);
 
-      spillRenderPass(true);
+        spillRenderPass(true);
 
-      prepareImage(image, image->getAvailableSubresources());
+        prepareImage(image, image->getAvailableSubresources());
+      }
     }
 
     // If the image has any pending layout transitions, flush them accordingly.
