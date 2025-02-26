@@ -13,13 +13,6 @@ namespace dxvk {
   struct D3D11Options {
     D3D11Options(const Config& config);
 
-    /// Enables speed hack for mapping on deferred contexts
-    ///
-    /// This can substantially speed up some games, but may
-    /// cause issues if the game submits command lists more
-    /// than once.
-    bool dcSingleUseMode = false;
-
     /// Zero-initialize workgroup memory
     ///
     /// Workargound for games that don't initialize
@@ -43,7 +36,7 @@ namespace dxvk {
     ///
     /// May improve performance in some games,
     /// but might also cause rendering issues.
-    bool ignoreGraphicsBarriers = false;
+    bool relaxedGraphicsBarriers = false;
 
     /// Maximum tessellation factor.
     ///

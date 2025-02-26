@@ -81,7 +81,6 @@ namespace dxvk {
     /* The Evil Within: Submits command lists     *
      * multiple times                             */
     { R"(\\EvilWithin(Demo)?\.exe$)", {{
-      { "d3d11.dcSingleUseMode",            "False" },
       { "d3d11.cachedDynamicResources",     "vi"   },
     }} },
     /* Far Cry 3: Assumes clear(0.5) on an UNORM  *
@@ -159,10 +158,6 @@ namespace dxvk {
     /* NieR Replicant                             */
     { R"(\\NieR Replicant ver\.1\.22474487139\.exe)", {{
       { "d3d11.cachedDynamicResources",     "vi"   },
-    }} },
-    /* SteamVR performance test                   */
-    { R"(\\vr\.exe$)", {{
-      { "d3d11.dcSingleUseMode",            "False" },
     }} },
     /* Hitman 2 - requires AGS library      */
     { R"(\\HITMAN2\.exe$)", {{
@@ -290,12 +285,11 @@ namespace dxvk {
     /* Final Fantasy XV: VXAO does thousands of   *
      * draw calls with the same UAV bound         */
     { R"(\\ffxv_s\.exe$)", {{
-      { "d3d11.ignoreGraphicsBarriers",     "True" },
+      { "d3d11.relaxedGraphicsBarriers",    "True" },
     }} },
     /* God of War - relies on NVAPI/AMDAGS for    *
      * barrier stuff, needs nvapi for DLSS        */
     { R"(\\GoW\.exe$)", {{
-      { "d3d11.ignoreGraphicsBarriers",     "True" },
       { "d3d11.relaxedBarriers",            "True" },
       { "dxgi.hideNvidiaGpu",               "False" },
       { "dxgi.maxFrameLatency",             "1"    },
@@ -333,7 +327,7 @@ namespace dxvk {
      * presumably for culling, which doesn't play *
      * nicely with D3D11 without vendor libraries */
     { R"(\\Stray-Win64-Shipping\.exe$)", {{
-      { "d3d11.ignoreGraphicsBarriers",     "True" },
+      { "d3d11.relaxedGraphicsBarriers",    "True" },
     }} },
     /* Metal Gear Solid V: Ground Zeroes          *
      * Texture quality can break at high vram     */
@@ -349,11 +343,6 @@ namespace dxvk {
      * Games speed up above 60 fps                */
     { R"(\\MSFC\.exe$)", {{
       { "dxgi.maxFrameRate",                "60" },
-    }} },
-    /* Cardfight!! Vanguard Dear Days:            *
-     * Submits command lists multiple times       */
-    { R"(\\VG2\.exe$)", {{
-      { "d3d11.dcSingleUseMode",            "False" },
     }} },
     /* Battlefield: Bad Company 2                 *
      * Gets rid of black flickering               */
@@ -383,10 +372,6 @@ namespace dxvk {
     { R"(\\CrashBandicootNSaneTrilogy\.exe$)", {{
       { "dxgi.syncInterval",                "1"   },
     }} },
-    /* SnowRunner                                 */
-    { R"(\\SnowRunner\.exe$)", {{
-      { "d3d11.dcSingleUseMode",            "False" },
-    }} },
     /* Fallout 76
      * Game tries to be too "smart" and changes sync
      * interval based on performance (in fullscreen)
@@ -408,10 +393,6 @@ namespace dxvk {
     { R"(\\BLADESTORM Nightmare\\Launch_(EA|JP)\.exe$)", {{
       { "dxgi.maxFrameRate",                "60"  },
     }} },
-    /* Ghost Recon Wildlands                      */
-    { R"(\\GRW\.exe$)", {{
-      { "d3d11.dcSingleUseMode",            "False" },
-    }} },
     /* Vindictus d3d11 CPU bound perf, and work   *
      * around the game not properly initializing  *
      * some of its constant buffers after discard */
@@ -432,7 +413,7 @@ namespace dxvk {
      * and assumes that AMD GPUs do not expose    *
      * native command lists for AGS usage         */
     { R"(\\granblue_fantasy_relink\.exe$)", {{
-      { "d3d11.ignoreGraphicsBarriers",     "True"  },
+      { "d3d11.relaxedGraphicsBarriers",    "True"  },
       { "d3d11.exposeDriverCommandLists",   "False" },
       { "dxgi.hideNvidiaGpu",               "False" },
     }} },
@@ -475,11 +456,6 @@ namespace dxvk {
      * Invisible terrain on Intel                  */
     { R"(\\FarCry(5|NewDawn)\.exe$)", {{
       { "d3d11.zeroInitWorkgroupMemory",    "True" },
-    }} },
-    /* Cardfight!! Vanguard Dear Days 2 - Broken   *
-     * effects and Invisible cards in battles      */
-    { R"(\\VGDD2\.exe$)", {{
-      { "d3d11.dcSingleUseMode",            "False" },
     }} },
 
     /**********************************************/
@@ -1203,6 +1179,7 @@ namespace dxvk {
      * Fixes shadow buffers and alt-tab           */
     { R"(\\splintercell\.exe$)", {{
       { "d3d8.scaleDref",                     "24" },
+      { "d3d8.shadowPerspectiveDivide",     "True" },
       { "d3d9.deviceLossOnFocusLoss",       "True" },
     }} },
     /* Trainz v1.3 (2001)                         *

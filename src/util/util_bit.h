@@ -54,19 +54,15 @@ namespace dxvk::bit {
     return (value >> fst) & ~(~T(0) << (lst - fst + 1));
   }
 
-  inline uint32_t popcntStep(uint32_t n, uint32_t mask, uint32_t shift) {
-    return (n & mask) + ((n & ~mask) >> shift);
+  template<typename T>
+  T popcnt(T n) {
+    n -= ((n >> 1u) & T(0x5555555555555555ull));
+    n = (n & T(0x3333333333333333ull)) + ((n >> 2u) & T(0x3333333333333333ull));
+    n = (n + (n >> 4u)) & T(0x0f0f0f0f0f0f0f0full);
+    n *= T(0x0101010101010101ull);
+    return n >> (8u * (sizeof(T) - 1u));
   }
-  
-  inline uint32_t popcnt(uint32_t n) {
-    n = popcntStep(n, 0x55555555, 1);
-    n = popcntStep(n, 0x33333333, 2);
-    n = popcntStep(n, 0x0F0F0F0F, 4);
-    n = popcntStep(n, 0x00FF00FF, 8);
-    n = popcntStep(n, 0x0000FFFF, 16);
-    return n;
-  }
-  
+
   inline uint32_t tzcnt(uint32_t n) {
     #if defined(_MSC_VER) && !defined(__clang__)
     return _tzcnt_u32(n);
@@ -130,6 +126,32 @@ namespace dxvk::bit {
       uint32_t hi = uint32_t(n >> 32);
       return tzcnt(hi) + 32;
     }
+    #endif
+  }
+
+  inline uint32_t bsf(uint32_t n) {
+    #if (defined(__GNUC__) || defined(__clang__)) && !defined(__BMI__) && defined(DXVK_ARCH_X86)
+    uint32_t res;
+    asm ("tzcnt %1,%0"
+    : "=r" (res)
+    : "r" (n)
+    : "cc");
+    return res;
+    #else
+    return tzcnt(n);
+    #endif
+  }
+
+  inline uint32_t bsf(uint64_t n) {
+    #if (defined(__GNUC__) || defined(__clang__)) && !defined(__BMI__) && defined(DXVK_ARCH_X86_64)
+    uint64_t res;
+    asm ("tzcnt %1,%0"
+    : "=r" (res)
+    : "r" (n)
+    : "cc");
+    return res;
+    #else
+    return tzcnt(n);
     #endif
   }
 
@@ -494,6 +516,7 @@ namespace dxvk::bit {
 
   };
 
+  template<typename T>
   class BitMask {
 
   public:
@@ -501,12 +524,12 @@ namespace dxvk::bit {
     class iterator {
     public:
       using iterator_category = std::input_iterator_tag;
-      using value_type = uint32_t;
-      using difference_type = uint32_t;
-      using pointer = const uint32_t*;
-      using reference = uint32_t;
+      using value_type = T;
+      using difference_type = T;
+      using pointer = const T*;
+      using reference = T;
 
-      explicit iterator(uint32_t flags)
+      explicit iterator(T flags)
         : m_mask(flags) { }
 
       iterator& operator ++ () {
@@ -520,17 +543,8 @@ namespace dxvk::bit {
         return retval;
       }
 
-      uint32_t operator * () const {
-#if (defined(__GNUC__) || defined(__clang__)) && !defined(__BMI__) && defined(DXVK_ARCH_X86)
-        uint32_t res;
-        asm ("tzcnt %1,%0"
-        : "=r" (res)
-        : "r" (m_mask)
-        : "cc");
-        return res;
-#else
-        return tzcnt(m_mask);
-#endif
+      T operator * () const {
+        return bsf(m_mask);
       }
 
       bool operator == (iterator other) const { return m_mask == other.m_mask; }
@@ -538,14 +552,14 @@ namespace dxvk::bit {
 
     private:
 
-      uint32_t m_mask;
+      T m_mask;
 
     };
 
     BitMask()
       : m_mask(0) { }
 
-    BitMask(uint32_t n)
+    explicit BitMask(T n)
       : m_mask(n) { }
 
     iterator begin() {
@@ -558,7 +572,7 @@ namespace dxvk::bit {
 
   private:
 
-    uint32_t m_mask;
+    T m_mask;
 
   };
 

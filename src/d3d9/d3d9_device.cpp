@@ -833,7 +833,7 @@ namespace dxvk {
       if (pSharedHandle != nullptr && Pool != D3DPOOL_DEFAULT)
         return D3DERR_INVALIDCALL;
 
-      const Com<D3D9Texture2D> texture = new D3D9Texture2D(this, &desc, pSharedHandle);
+      const Com<D3D9Texture2D> texture = new D3D9Texture2D(this, &desc, IsExtended(), pSharedHandle);
 
       m_initializer->InitTexture(texture->GetCommonTexture(), initialData);
       *ppTexture = texture.ref();
@@ -893,7 +893,7 @@ namespace dxvk {
       return D3DERR_INVALIDCALL;
 
     try {
-      const Com<D3D9Texture3D> texture = new D3D9Texture3D(this, &desc);
+      const Com<D3D9Texture3D> texture = new D3D9Texture3D(this, &desc, IsExtended());
       m_initializer->InitTexture(texture->GetCommonTexture());
       *ppVolumeTexture = texture.ref();
 
@@ -951,7 +951,7 @@ namespace dxvk {
       return D3DERR_INVALIDCALL;
 
     try {
-      const Com<D3D9TextureCube> texture = new D3D9TextureCube(this, &desc);
+      const Com<D3D9TextureCube> texture = new D3D9TextureCube(this, &desc, IsExtended());
       m_initializer->InitTexture(texture->GetCommonTexture());
       *ppCubeTexture = texture.ref();
 
@@ -995,7 +995,7 @@ namespace dxvk {
       return D3DERR_INVALIDCALL;
 
     try {
-      const Com<D3D9VertexBuffer> buffer = new D3D9VertexBuffer(this, &desc);
+      const Com<D3D9VertexBuffer> buffer = new D3D9VertexBuffer(this, &desc, IsExtended());
       m_initializer->InitBuffer(buffer->GetCommonBuffer());
       *ppVertexBuffer = buffer.ref();
 
@@ -1038,7 +1038,7 @@ namespace dxvk {
       return D3DERR_INVALIDCALL;
 
     try {
-      const Com<D3D9IndexBuffer> buffer = new D3D9IndexBuffer(this, &desc);
+      const Com<D3D9IndexBuffer> buffer = new D3D9IndexBuffer(this, &desc, IsExtended());
       m_initializer->InitBuffer(buffer->GetCommonBuffer());
       *ppIndexBuffer = buffer.ref();
 
@@ -1936,7 +1936,7 @@ namespace dxvk {
 
     m_state.depthStencil = ds;
 
-    UpdateActiveHazardsDS(UINT32_MAX);
+    UpdateActiveHazardsDS(std::numeric_limits<uint32_t>::max());
 
     return D3D_OK;
   }
@@ -2333,7 +2333,7 @@ namespace dxvk {
     if (m_state.IsLightEnabled(Index) == !!Enable)
       return D3D_OK;
 
-    uint32_t searchIndex = UINT32_MAX;
+    uint32_t searchIndex = std::numeric_limits<uint32_t>::max();
     uint32_t setIndex    = Index;
 
     if (!Enable)
@@ -2560,7 +2560,7 @@ namespace dxvk {
 
         case D3DRS_ZWRITEENABLE:
           if (likely(!old != !Value))
-            UpdateActiveHazardsDS(UINT32_MAX);
+            UpdateActiveHazardsDS(std::numeric_limits<uint32_t>::max());
         [[fallthrough]];
         case D3DRS_STENCILENABLE:
         case D3DRS_ZENABLE:
@@ -3066,9 +3066,12 @@ namespace dxvk {
 
       // Tests on Windows show that D3D9 does not do non-indexed instanced draws.
 
-      ctx->draw(
-        vertexCount, 1,
-        cStartVertex, 0);
+      VkDrawIndirectCommand draw = { };
+      draw.vertexCount   = vertexCount;
+      draw.instanceCount = 1u;
+      draw.firstVertex   = cStartVertex;
+
+      ctx->draw(1u, &draw);
     });
 
     return D3D_OK;
@@ -3115,10 +3118,13 @@ namespace dxvk {
 
       ApplyPrimitiveType(ctx, cPrimType);
 
-      ctx->drawIndexed(
-        drawInfo.vertexCount, drawInfo.instanceCount,
-        cStartIndex,
-        cBaseVertexIndex, 0);
+      VkDrawIndexedIndirectCommand draw = { };
+      draw.indexCount    = drawInfo.vertexCount;
+      draw.instanceCount = drawInfo.instanceCount;
+      draw.firstIndex    = cStartIndex;
+      draw.vertexOffset  = cBaseVertexIndex;
+
+      ctx->drawIndexed(1u, &draw);
     });
 
     return D3D_OK;
@@ -3157,11 +3163,12 @@ namespace dxvk {
       ApplyPrimitiveType(ctx, cPrimType);
 
       // Tests on Windows show that D3D9 does not do non-indexed instanced draws.
+      VkDrawIndirectCommand draw = { };
+      draw.vertexCount = cVertexCount;
+      draw.instanceCount = 1u;
 
       ctx->bindVertexBuffer(0, std::move(cBufferSlice), cStride);
-      ctx->draw(
-        cVertexCount, 1,
-        0, 0);
+      ctx->draw(1u, &draw);
       ctx->bindVertexBuffer(0, DxvkBufferSlice(), 0);
     });
 
@@ -3221,12 +3228,13 @@ namespace dxvk {
 
       ApplyPrimitiveType(ctx, cPrimType);
 
+      VkDrawIndexedIndirectCommand draw = { };
+      draw.indexCount    = drawInfo.vertexCount;
+      draw.instanceCount = drawInfo.instanceCount;
+
       ctx->bindVertexBuffer(0, cBufferSlice.subSlice(0, cVertexSize), cStride);
       ctx->bindIndexBuffer(cBufferSlice.subSlice(cVertexSize, cBufferSlice.length() - cVertexSize), cIndexType);
-      ctx->drawIndexed(
-        drawInfo.vertexCount, drawInfo.instanceCount,
-        0,
-        0, 0);
+      ctx->drawIndexed(1u, &draw);
       ctx->bindVertexBuffer(0, DxvkBufferSlice(), 0);
       ctx->bindIndexBuffer(DxvkBufferSlice(), VK_INDEX_TYPE_UINT32);
     });
@@ -3338,11 +3346,14 @@ namespace dxvk {
       // to avoid val errors / UB.
       ctx->bindShader<VK_SHADER_STAGE_FRAGMENT_BIT>(nullptr);
 
+      VkDrawIndirectCommand draw = { };
+      draw.vertexCount   = drawInfo.vertexCount;
+      draw.instanceCount = drawInfo.instanceCount;
+      draw.firstVertex   = cStartIndex;
+
       ctx->bindShader<VK_SHADER_STAGE_GEOMETRY_BIT>(std::move(shader));
       ctx->bindUniformBuffer(VK_SHADER_STAGE_GEOMETRY_BIT, getSWVPBufferSlot(), std::move(cBufferSlice));
-      ctx->draw(
-        drawInfo.vertexCount, drawInfo.instanceCount,
-        cStartIndex, 0);
+      ctx->draw(1u, &draw);
       ctx->bindUniformBuffer(VK_SHADER_STAGE_GEOMETRY_BIT, getSWVPBufferSlot(), DxvkBufferSlice());
       ctx->bindShader<VK_SHADER_STAGE_GEOMETRY_BIT>(nullptr);
     });
@@ -3563,7 +3574,7 @@ namespace dxvk {
       BindShader<DxsoProgramTypes::VertexShader>(GetCommonShader(shader));
       m_vsShaderMasks = newShader->GetShaderMask();
 
-      UpdateTextureTypeMismatchesForShader(newShader, m_vsShaderMasks.samplerMask, caps::MaxTexturesPS + 1);
+      UpdateTextureTypeMismatchesForShader(newShader, m_vsShaderMasks.samplerMask, FirstVSSamplerSlot);
     }
     else {
       m_vsShaderMasks = D3D9ShaderMasks();
@@ -3971,8 +3982,8 @@ namespace dxvk {
     if (m_psShaderMasks.samplerMask != newShaderMasks.samplerMask ||
         m_psShaderMasks.rtMask != newShaderMasks.rtMask) {
       m_psShaderMasks = newShaderMasks;
-      UpdateActiveHazardsRT(UINT32_MAX);
-      UpdateActiveHazardsDS(UINT32_MAX);
+      UpdateActiveHazardsRT(std::numeric_limits<uint32_t>::max());
+      UpdateActiveHazardsDS(std::numeric_limits<uint32_t>::max());
     }
 
     return D3D_OK;
@@ -4302,7 +4313,7 @@ namespace dxvk {
       return D3DERR_INVALIDCALL;
 
     try {
-      const Com<D3D9Surface> surface = new D3D9Surface(this, &desc, nullptr, pSharedHandle);
+      const Com<D3D9Surface> surface = new D3D9Surface(this, &desc, IsExtended(), nullptr, pSharedHandle);
       m_initializer->InitTexture(surface->GetCommonTexture());
       *ppSurface = surface.ref();
       m_losableResourceCounter++;
@@ -4353,7 +4364,7 @@ namespace dxvk {
       return D3DERR_INVALIDCALL;
 
     try {
-      const Com<D3D9Surface> surface = new D3D9Surface(this, &desc, nullptr, pSharedHandle);
+      const Com<D3D9Surface> surface = new D3D9Surface(this, &desc, IsExtended(), nullptr, pSharedHandle);
       m_initializer->InitTexture(surface->GetCommonTexture());
       *ppSurface = surface.ref();
       
@@ -4404,7 +4415,7 @@ namespace dxvk {
       return D3DERR_INVALIDCALL;
 
     try {
-      const Com<D3D9Surface> surface = new D3D9Surface(this, &desc, nullptr, pSharedHandle);
+      const Com<D3D9Surface> surface = new D3D9Surface(this, &desc, IsExtended(), nullptr, pSharedHandle);
       m_initializer->InitTexture(surface->GetCommonTexture());
       *ppSurface = surface.ref();
       m_losableResourceCounter++;
@@ -6267,7 +6278,7 @@ namespace dxvk {
     ] (DxvkContext* ctx) {
       ctx->signal(cSubmissionFence, cSubmissionId);
       ctx->signal(cStagingBufferFence, cStagingBufferAllocated);
-      ctx->flushCommandList(cSubmissionStatus);
+      ctx->flushCommandList(nullptr, cSubmissionStatus);
     });
 
     FlushCsChunk();
@@ -6556,15 +6567,16 @@ namespace dxvk {
 
 
   void D3D9DeviceEx::UpdateTextureTypeMismatchesForShader(const D3D9CommonShader* shader, uint32_t shaderSamplerMask, uint32_t shaderSamplerOffset) {
+    const uint32_t stageCorrectedShaderSamplerMask = shaderSamplerMask << shaderSamplerOffset;
     if (unlikely(shader->GetInfo().majorVersion() < 2 || m_d3d9Options.forceSamplerTypeSpecConstants)) {
       // SM 1 shaders don't define the texture type in the shader.
       // We always use spec constants for those.
-      m_dirtyTextures |= shaderSamplerMask & m_mismatchingTextureTypes;
-      m_mismatchingTextureTypes &= ~shaderSamplerMask;
+      m_dirtyTextures |= stageCorrectedShaderSamplerMask & m_mismatchingTextureTypes;
+      m_mismatchingTextureTypes &= ~stageCorrectedShaderSamplerMask;
       return;
     }
 
-    for (uint32_t i : bit::BitMask(shaderSamplerMask)) {
+    for (const uint32_t i : bit::BitMask(stageCorrectedShaderSamplerMask)) {
       const D3D9CommonTexture* texture = GetCommonTexture(m_state.textures[i]);
       if (unlikely(texture == nullptr)) {
         // Unbound textures are not mismatching texture types
@@ -6590,12 +6602,15 @@ namespace dxvk {
   void D3D9DeviceEx::UpdateTextureTypeMismatchesForTexture(uint32_t stateSampler) {
     uint32_t shaderTextureIndex;
     const D3D9CommonShader* shader;
-    if (unlikely(stateSampler > caps::MaxTexturesPS + 1)) {
+    if (likely(IsPSSampler(stateSampler))) {
+      shader = GetCommonShader(m_state.pixelShader);
+      shaderTextureIndex = stateSampler;
+    } else if (unlikely(IsVSSampler(stateSampler))) {
       shader = GetCommonShader(m_state.vertexShader);
       shaderTextureIndex = stateSampler - caps::MaxTexturesPS - 1;
     } else {
-      shader = GetCommonShader(m_state.pixelShader);
-      shaderTextureIndex = stateSampler;
+      // Do not type check the fixed function displacement map texture.
+      return;
     }
 
     if (unlikely(shader == nullptr || shader->GetInfo().majorVersion() < 2 || m_d3d9Options.forceSamplerTypeSpecConstants)) {
@@ -6612,7 +6627,7 @@ namespace dxvk {
     bool shaderUsesTexture = shaderViewType != VkImageViewType(0);
     if (unlikely(boundViewType != shaderViewType && shaderUsesTexture)) {
       const uint32_t samplerBit = 1u << stateSampler;
-      m_mismatchingTextureTypes |= 1 << samplerBit;
+      m_mismatchingTextureTypes |= samplerBit;
     }
   }
 
@@ -7868,6 +7883,10 @@ namespace dxvk {
     const     uint32_t regCountHardware = DetermineHardwareRegCount<ProgramType, ConstantType>();
     constexpr uint32_t regCountSoftware = DetermineSoftwareRegCount<ProgramType, ConstantType>();
 
+    // Error out in case of StartRegister + Count overflow
+    if (unlikely(StartRegister > std::numeric_limits<uint32_t>::max() - Count))
+      return D3DERR_INVALIDCALL;
+
     if (unlikely(StartRegister + Count > regCountSoftware))
       return D3DERR_INVALIDCALL;
 
@@ -7986,7 +8005,7 @@ namespace dxvk {
 
       if (key.Data.Contents.UseLighting) {
         for (uint32_t i = 0; i < caps::MaxEnabledLights; i++) {
-          if (m_state.enabledLightIndices[i] != UINT32_MAX)
+          if (m_state.enabledLightIndices[i] != std::numeric_limits<uint32_t>::max())
             lightCount++;
         }
       }
@@ -8083,7 +8102,7 @@ namespace dxvk {
       uint32_t lightIdx = 0;
       for (uint32_t i = 0; i < caps::MaxEnabledLights; i++) {
         auto idx = m_state.enabledLightIndices[i];
-        if (idx == UINT32_MAX)
+        if (idx == std::numeric_limits<uint32_t>::max())
           continue;
 
         data->Lights[lightIdx++] = D3D9Light(m_state.lights[idx].value(), m_state.transforms[GetTransformIndex(D3DTS_VIEW)]);
@@ -8685,7 +8704,7 @@ namespace dxvk {
       if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, D3DRTYPE_SURFACE, &desc)))
         return D3DERR_NOTAVAILABLE;
 
-      m_autoDepthStencil = new D3D9Surface(this, &desc, nullptr, nullptr);
+      m_autoDepthStencil = new D3D9Surface(this, &desc, IsExtended(), nullptr, nullptr);
       m_initializer->InitTexture(m_autoDepthStencil->GetCommonTexture());
       SetDepthStencilSurface(m_autoDepthStencil.ptr());
       m_losableResourceCounter++;

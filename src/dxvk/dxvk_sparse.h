@@ -581,6 +581,27 @@ namespace dxvk {
     }
 
     /**
+     * \brief Checks whether the buffer has been used for gfx stores
+     *
+     * \returns \c true if any graphics pipeline has written this
+     *    resource via transform feedback or a storage descriptor.
+     */
+    bool hasGfxStores() const {
+      return m_hasGfxStores;
+    }
+
+    /**
+     * \brief Tracks graphics pipeline side effects
+     *
+     * Must be called whenever the resource is written via graphics
+     * pipeline storage descriptors or transform feedback.
+     * \returns \c true if side effects were already tracked.
+     */
+    bool trackGfxStores() {
+      return std::exchange(m_hasGfxStores, true);
+    }
+
+    /**
      * \brief Queries sparse page table
      *
      * Should be removed once storage objects can
@@ -616,11 +637,21 @@ namespace dxvk {
      */
     virtual void setDebugName(const char* name) = 0;
 
+    /**
+     * \brief Retrieves debug name
+     *
+     * May return an empty string if debug support is disabled.
+     * \returns The resource debug name
+     */
+    virtual const char* getDebugName() const = 0;
+
   private:
 
     std::atomic<uint64_t> m_useCount = { 0u };
     uint64_t              m_trackId = { 0u };
     uint64_t              m_cookie = { 0u };
+
+    bool                  m_hasGfxStores = false;
 
     static constexpr uint64_t getIncrement(DxvkAccess access) {
       return uint64_t(1u) << (uint32_t(access) * 20u);
