@@ -208,6 +208,9 @@ namespace dxvk {
 
     // End the main function
     emitFunctionEnd();
+
+    // For pass-through we always assume points
+    m_inputTopology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
   }
   
   
@@ -241,10 +244,9 @@ namespace dxvk {
     info.bindings = m_bindings.data();
     info.inputMask = m_inputMask;
     info.outputMask = m_outputMask;
-    info.uniformSize = m_immConstData.size();
-    info.uniformData = m_immConstData.data();
     info.pushConstStages = VK_SHADER_STAGE_FRAGMENT_BIT;
     info.pushConstSize = sizeof(DxbcPushConstants);
+    info.inputTopology = m_inputTopology;
     info.outputTopology = m_outputTopology;
 
     if (m_programInfo.type() == DxbcProgramType::HullShader)
@@ -817,7 +819,7 @@ namespace dxvk {
     if (ins.controls.accessType() == DxbcConstantBufferAccessType::DynamicallyIndexed)
       elementCount = 4096;
 
-    this->emitDclConstantBufferVar(bufferId, elementCount,
+    this->emitDclConstantBufferVar(bufferId, elementCount, 4u,
       str::format("cb", bufferId).c_str());
   }
   
@@ -825,13 +827,14 @@ namespace dxvk {
   void DxbcCompiler::emitDclConstantBufferVar(
           uint32_t                regIdx,
           uint32_t                numConstants,
+          uint32_t                numComponents,
     const char*                   name) {
     // Uniform buffer data is stored as a fixed-size array
     // of 4x32-bit vectors. SPIR-V requires explicit strides.
     const uint32_t arrayType = m_module.defArrayTypeUnique(
-      getVectorTypeId({ DxbcScalarType::Float32, 4 }),
+      getVectorTypeId({ DxbcScalarType::Float32, numComponents }),
       m_module.constu32(numConstants));
-    m_module.decorateArrayStride(arrayType, 16);
+    m_module.decorateArrayStride(arrayType, sizeof(uint32_t) * numComponents);
     
     // SPIR-V requires us to put that array into a
     // struct and decorate that struct as a block.
@@ -1293,24 +1296,22 @@ namespace dxvk {
     // The input primitive type is stored within in the
     // control bits of the opcode token. In SPIR-V, we
     // have to define an execution mode.
-    const spv::ExecutionMode mode = [&] {
+    const auto mode = [&] {
       switch (ins.controls.primitive()) {
-        case DxbcPrimitive::Point:       return spv::ExecutionModeInputPoints;
-        case DxbcPrimitive::Line:        return spv::ExecutionModeInputLines;
-        case DxbcPrimitive::Triangle:    return spv::ExecutionModeTriangles;
-        case DxbcPrimitive::LineAdj:     return spv::ExecutionModeInputLinesAdjacency;
-        case DxbcPrimitive::TriangleAdj: return spv::ExecutionModeInputTrianglesAdjacency;
+        case DxbcPrimitive::Point:       return std::make_pair(VK_PRIMITIVE_TOPOLOGY_POINT_LIST,                   spv::ExecutionModeInputPoints);
+        case DxbcPrimitive::Line:        return std::make_pair(VK_PRIMITIVE_TOPOLOGY_LINE_LIST,                    spv::ExecutionModeInputLines);
+        case DxbcPrimitive::Triangle:    return std::make_pair(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,                spv::ExecutionModeTriangles);
+        case DxbcPrimitive::LineAdj:     return std::make_pair(VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY,     spv::ExecutionModeInputLinesAdjacency);
+        case DxbcPrimitive::TriangleAdj: return std::make_pair(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY, spv::ExecutionModeInputTrianglesAdjacency);
         default: throw DxvkError("DxbcCompiler: Unsupported primitive type");
       }
     }();
-    
+
     m_gs.inputPrimitive = ins.controls.primitive();
-    m_module.setExecutionMode(m_entryPointId, mode);
+    m_module.setExecutionMode(m_entryPointId, mode.second);
+    m_inputTopology = mode.first;
     
-    const uint32_t vertexCount
-      = primitiveVertexCount(m_gs.inputPrimitive);
-    
-    emitDclInputArray(vertexCount);
+    emitDclInputArray(primitiveVertexCount(m_gs.inputPrimitive));
   }
   
   
@@ -1491,77 +1492,122 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitDclImmediateConstantBuffer(const DxbcShaderInstruction& ins) {
-    if (m_immConstBuf != 0)
+    if (m_icbArray)
       throw DxvkError("DxbcCompiler: Immediate constant buffer already declared");
     
     if ((ins.customDataSize & 0x3) != 0)
       throw DxvkError("DxbcCompiler: Immediate constant buffer size not a multiple of four DWORDs");
-    
-    if (ins.customDataSize <= Icb_MaxBakedDwords) {
+
+    // A lot of the time we'll be dealing with a scalar or vec2
+    // array here, there's no reason to emit all those zeroes.
+    uint32_t componentCount = 1u;
+
+    for (uint32_t i = 0; i < ins.customDataSize; i += 4u) {
+      for (uint32_t c = componentCount; c < 4u; c++) {
+        if (ins.customData[i + c])
+          componentCount = c + 1u;
+      }
+
+      if (componentCount == 4u)
+        break;
+    }
+
+    uint32_t vectorCount = (ins.customDataSize / 4u);
+    uint32_t dwordCount = vectorCount * componentCount;
+
+    if (dwordCount <= Icb_MaxBakedDwords) {
       this->emitDclImmediateConstantBufferBaked(
-        ins.customDataSize, ins.customData);
+        ins.customDataSize, ins.customData, componentCount);
     } else {
       this->emitDclImmediateConstantBufferUbo(
-        ins.customDataSize, ins.customData);
+        ins.customDataSize, ins.customData, componentCount);
     }
   }
 
 
   void DxbcCompiler::emitDclImmediateConstantBufferBaked(
           uint32_t                dwordCount,
-    const uint32_t*               dwordArray) {
+    const uint32_t*               dwordArray,
+          uint32_t                componentCount) {
     // Declare individual vector constants as 4x32-bit vectors
-    std::array<uint32_t, 4096> vectorIds;
+    small_vector<uint32_t, Icb_MaxBakedDwords> vectorIds;
     
     DxbcVectorType vecType;
     vecType.ctype  = DxbcScalarType::Uint32;
-    vecType.ccount = 4;
+    vecType.ccount = componentCount;
     
-    const uint32_t vectorTypeId = getVectorTypeId(vecType);
-    const uint32_t vectorCount  = dwordCount / 4;
+    uint32_t vectorTypeId = getVectorTypeId(vecType);
     
-    for (uint32_t i = 0; i < vectorCount; i++) {
-      std::array<uint32_t, 4> scalarIds = {
-        m_module.constu32(dwordArray[4 * i + 0]),
-        m_module.constu32(dwordArray[4 * i + 1]),
-        m_module.constu32(dwordArray[4 * i + 2]),
-        m_module.constu32(dwordArray[4 * i + 3]),
-      };
-      
-      vectorIds.at(i) = m_module.constComposite(
-        vectorTypeId, scalarIds.size(), scalarIds.data());
+    for (uint32_t i = 0; i < dwordCount; i += 4u) {
+      std::array<uint32_t, 4> scalarIds = { };
+
+      for (uint32_t c = 0; c < componentCount; c++)
+        scalarIds[c] = m_module.constu32(dwordArray[i + c]);
+
+      uint32_t id = scalarIds[0];
+
+      if (componentCount > 1u)
+        id = m_module.constComposite(vectorTypeId, componentCount, scalarIds.data());
+
+      vectorIds.push_back(id);
     }
-    
+
+    // Pad array with one entry of zeroes so that we can
+    // handle out-of-bounds accesses more conveniently.
+    vectorIds.push_back(emitBuildZeroVector(vecType).id);
+
     // Declare the array that contains all the vectors
     DxbcArrayType arrInfo;
     arrInfo.ctype   = DxbcScalarType::Uint32;
-    arrInfo.ccount  = 4;
-    arrInfo.alength = vectorCount;
-    
-    const uint32_t arrayTypeId = getArrayTypeId(arrInfo);
-    const uint32_t arrayId = m_module.constComposite(
-      arrayTypeId, vectorCount, vectorIds.data());
-    
+    arrInfo.ccount  = componentCount;
+    arrInfo.alength = vectorIds.size();
+
+    uint32_t arrayTypeId = getArrayTypeId(arrInfo);
+    uint32_t arrayId = m_module.constComposite(
+      arrayTypeId, vectorIds.size(), vectorIds.data());
+
     // Declare the variable that will hold the constant
     // data and initialize it with the constant array.
-    const uint32_t pointerTypeId = m_module.defPointerType(
+    uint32_t pointerTypeId = m_module.defPointerType(
       arrayTypeId, spv::StorageClassPrivate);
-    
-    m_immConstBuf = m_module.newVarInit(
+
+    m_icbArray = m_module.newVarInit(
       pointerTypeId, spv::StorageClassPrivate,
       arrayId);
 
-    m_module.setDebugName(m_immConstBuf, "icb");
-    m_module.decorate(m_immConstBuf, spv::DecorationNonWritable);
+    m_module.setDebugName(m_icbArray, "icb");
+    m_module.decorate(m_icbArray, spv::DecorationNonWritable);
+
+    m_icbComponents = componentCount;
+    m_icbSize = dwordCount / 4u;
   }
   
   
   void DxbcCompiler::emitDclImmediateConstantBufferUbo(
           uint32_t                dwordCount,
-    const uint32_t*               dwordArray) {
-    this->emitDclConstantBufferVar(Icb_BindingSlotId, dwordCount / 4, "icb");
-    m_immConstData.resize(dwordCount * sizeof(uint32_t));
-    std::memcpy(m_immConstData.data(), dwordArray, m_immConstData.size());
+    const uint32_t*               dwordArray,
+          uint32_t                componentCount) {
+    uint32_t vectorCount = dwordCount / 4u;
+
+    // Tightly pack vec2 or scalar arrays if possible. Don't bother with
+    // vec3 since we'd rather have properly vectorized loads in that case.
+    if (m_moduleInfo.options.supportsTightIcbPacking && componentCount <= 2u)
+      m_icbComponents = componentCount;
+    else
+      m_icbComponents = 4u;
+
+    // Immediate constant buffer can be read out of bounds, declare
+    // it with the maximum possible size and rely on robustness.
+    this->emitDclConstantBufferVar(Icb_BindingSlotId, 4096u, m_icbComponents, "icb");
+
+    m_icbData.reserve(vectorCount * componentCount);
+
+    for (uint32_t i = 0; i < dwordCount; i += 4u) {
+      for (uint32_t c = 0; c < m_icbComponents; c++)
+        m_icbData.push_back(dwordArray[i + c]);
+    }
+
+    m_icbSize = vectorCount;
   }
 
 
@@ -5282,13 +5328,17 @@ namespace dxvk {
   
   DxbcRegisterPointer DxbcCompiler::emitGetImmConstBufPtr(
     const DxbcRegister&           operand) {
-    const DxbcRegisterValue constId
-      = emitIndexLoad(operand.idx[0]);
-    
-    if (m_immConstBuf != 0) {
+    DxbcRegisterValue constId = emitIndexLoad(operand.idx[0]);
+
+    if (m_icbArray) {
+      // We pad the icb array with an extra zero vector, so we can
+      // clamp the index and get correct robustness behaviour.
+      constId.id = m_module.opUMin(getVectorTypeId(constId.type),
+        constId.id, m_module.constu32(m_icbSize));
+
       DxbcRegisterInfo ptrInfo;
       ptrInfo.type.ctype   = DxbcScalarType::Uint32;
-      ptrInfo.type.ccount  = 4;
+      ptrInfo.type.ccount  = m_icbComponents;
       ptrInfo.type.alength = 0;
       ptrInfo.sclass = spv::StorageClassPrivate;
 
@@ -5297,7 +5347,7 @@ namespace dxvk {
       result.type.ccount = ptrInfo.type.ccount;
       result.id = m_module.opAccessChain(
         getPointerTypeId(ptrInfo),
-        m_immConstBuf, 1, &constId.id);
+        m_icbArray, 1, &constId.id);
       return result;
     } else if (m_constantBuffers.at(Icb_BindingSlotId).varId != 0) {
       const std::array<uint32_t, 2> indices =
@@ -5305,7 +5355,7 @@ namespace dxvk {
       
       DxbcRegisterInfo ptrInfo;
       ptrInfo.type.ctype   = DxbcScalarType::Float32;
-      ptrInfo.type.ccount  = 4;
+      ptrInfo.type.ccount  = m_icbComponents;
       ptrInfo.type.alength = 0;
       ptrInfo.sclass = spv::StorageClassUniform;
 
@@ -5343,7 +5393,7 @@ namespace dxvk {
       
       case DxbcOperandType::ImmediateConstantBuffer:
         return emitGetImmConstBufPtr(operand);
-      
+
       case DxbcOperandType::InputThreadId:
         return DxbcRegisterPointer {
           { DxbcScalarType::Uint32, 3 },
@@ -5812,7 +5862,24 @@ namespace dxvk {
       }
     }
 
-    return emitValueLoad(emitGetOperandPtr(reg));
+    DxbcRegisterValue value = emitValueLoad(emitGetOperandPtr(reg));
+
+    // Pad icb values to a vec4 since the app may access components that are always 0
+    if (reg.type == DxbcOperandType::ImmediateConstantBuffer && value.type.ccount < 4u) {
+      DxbcVectorType zeroType;
+      zeroType.ctype = value.type.ctype;
+      zeroType.ccount = 4u - value.type.ccount;
+
+      uint32_t zeroVector = emitBuildZeroVector(zeroType).id;
+
+      std::array<uint32_t, 2> constituents = { value.id, zeroVector };
+
+      value.type.ccount = 4u;
+      value.id = m_module.opCompositeConstruct(getVectorTypeId(value.type),
+        constituents.size(), constituents.data());
+    }
+
+    return value;
   }
   
   

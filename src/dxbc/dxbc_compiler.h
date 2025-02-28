@@ -173,8 +173,8 @@ namespace dxvk {
 
     bool needsOutputSetup = false;
   };
-  
-  
+
+
   /**
    * \brief Pixel shader-specific structure
    */
@@ -404,6 +404,17 @@ namespace dxvk {
      * \returns The final shader object
      */
     Rc<DxvkShader> finalize();
+
+    /**
+     * \brief Extracts immediate constant buffer data
+     *
+     * Only defined if the ICB needs to be backed by a
+     * uniform buffer.
+     * \returns Immediate constant buffer data
+     */
+    std::vector<uint32_t> getIcbData() const {
+      return std::move(m_icbData);
+    }
     
   private:
     
@@ -503,8 +514,11 @@ namespace dxvk {
     //////////////////////////////////////////////////
     // Immediate constant buffer. If defined, this is
     // an array of four-component uint32 vectors.
-    uint32_t m_immConstBuf = 0;
-    std::vector<char> m_immConstData;
+    uint32_t          m_icbArray = 0;
+    std::vector<uint32_t> m_icbData;
+
+    uint32_t          m_icbComponents = 0u;
+    uint32_t          m_icbSize = 0u;
     
     ///////////////////////////////////////////////////
     // Sample pos array. If defined, this iis an array
@@ -548,6 +562,7 @@ namespace dxvk {
     DxbcOpcode m_lastOp = DxbcOpcode::Nop;
     DxbcOpcode m_currOp = DxbcOpcode::Nop;
 
+    VkPrimitiveTopology m_inputTopology = VK_PRIMITIVE_TOPOLOGY_MAX_ENUM;
     VkPrimitiveTopology m_outputTopology = VK_PRIMITIVE_TOPOLOGY_MAX_ENUM;
 
     /////////////////////////////////////////////////////
@@ -590,6 +605,7 @@ namespace dxvk {
     void emitDclConstantBufferVar(
             uint32_t                regIdx,
             uint32_t                numConstants,
+            uint32_t                numComponents,
       const char*                   name);
     
     void emitDclSampler(
@@ -650,11 +666,13 @@ namespace dxvk {
     
     void emitDclImmediateConstantBufferBaked(
             uint32_t                dwordCount,
-      const uint32_t*               dwordArray);
+      const uint32_t*               dwordArray,
+            uint32_t                componentCount);
     
     void emitDclImmediateConstantBufferUbo(
             uint32_t                dwordCount,
-      const uint32_t*               dwordArray);
+      const uint32_t*               dwordArray,
+            uint32_t                componentCount);
     
     void emitCustomData(
       const DxbcShaderInstruction&  ins);
