@@ -457,6 +457,11 @@ namespace dxvk {
     { R"(\\FarCry(5|NewDawn)\.exe$)", {{
       { "d3d11.zeroInitWorkgroupMemory",    "True" },
     }} },
+    /* Watch Dogs 2 - ships broken compute shaders *
+     * with no barriers when they are needed       */
+    { R"(\\WatchDogs2\.exe$)", {{
+      { "d3d11.forceComputeUavBarriers",    "True" },
+    }} },
 
     /**********************************************/
     /* D3D9 GAMES                                 */
@@ -1020,6 +1025,11 @@ namespace dxvk {
       { "d3d9.customVendorId",              "1002" },
       { "d3d9.maxAvailableMemory",          "2048" },
       { "d3d9.memoryTrackTest",             "True" },
+    }} },
+    /* CivCity: Rome                              *
+     * Enables soft real-time shadows             */
+    { R"(\\CivCity Rome\.exe$)", {{
+      { "d3d9.customVendorId",              "10de" },
     }} },
 
     /**********************************************/

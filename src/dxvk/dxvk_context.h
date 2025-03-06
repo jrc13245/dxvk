@@ -1948,6 +1948,38 @@ namespace dxvk {
             VkAccessFlags2            dstAccess,
             DxvkAccessOp              accessOp);
 
+    void accessImageRegion(
+            DxvkCmdBuffer             cmdBuffer,
+            DxvkImage&                image,
+      const VkImageSubresourceLayers& subresources,
+            VkOffset3D                offset,
+            VkExtent3D                extent,
+            VkImageLayout             srcLayout,
+            VkPipelineStageFlags2     srcStages,
+            VkAccessFlags2            srcAccess,
+            DxvkAccessOp              accessOp);
+
+    void accessImageRegion(
+            DxvkCmdBuffer             cmdBuffer,
+            DxvkImage&                image,
+      const VkImageSubresourceLayers& subresources,
+            VkOffset3D                offset,
+            VkExtent3D                extent,
+            VkImageLayout             srcLayout,
+            VkPipelineStageFlags2     srcStages,
+            VkAccessFlags2            srcAccess,
+            VkImageLayout             dstLayout,
+            VkPipelineStageFlags2     dstStages,
+            VkAccessFlags2            dstAccess,
+            DxvkAccessOp              accessOp);
+
+    void accessImageTransfer(
+            DxvkImage&                image,
+      const VkImageSubresourceRange&  subresources,
+            VkImageLayout             srcLayout,
+            VkPipelineStageFlags2     srcStages,
+            VkAccessFlags2            srcAccess);
+
     void accessBuffer(
             DxvkCmdBuffer             cmdBuffer,
             DxvkBuffer&               buffer,
@@ -1999,6 +2031,11 @@ namespace dxvk {
             VkPipelineStageFlags2     dstStages,
             VkAccessFlags2            dstAccess,
             DxvkAccessOp              accessOp);
+
+    void accessBufferTransfer(
+            DxvkBuffer&               buffer,
+            VkPipelineStageFlags2     srcStages,
+            VkAccessFlags2            srcAccess);
 
     void accessDrawBuffer(
             VkDeviceSize              offset,
@@ -2025,6 +2062,13 @@ namespace dxvk {
             DxvkAccess                access);
 
     void flushPendingAccesses(
+            DxvkImage&                image,
+      const VkImageSubresourceLayers& subresources,
+            VkOffset3D                offset,
+            VkExtent3D                extent,
+            DxvkAccess                access);
+
+    void flushPendingAccesses(
             DxvkImageView&            imageView,
             DxvkAccess                access);
 
@@ -2045,6 +2089,14 @@ namespace dxvk {
     bool resourceHasAccess(
             DxvkImage&                image,
       const VkImageSubresourceRange&  subresources,
+            DxvkAccess                access,
+            DxvkAccessOp              accessOp);
+
+    bool resourceHasAccess(
+            DxvkImage&                image,
+      const VkImageSubresourceLayers& subresources,
+            VkOffset3D                offset,
+            VkExtent3D                extent,
             DxvkAccess                access,
             DxvkAccessOp              accessOp);
 

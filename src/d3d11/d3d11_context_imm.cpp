@@ -98,7 +98,7 @@ namespace dxvk {
       // on queries without ever flushing the context otherwise.
       D3D10DeviceLock lock = LockContext();
 
-      if (unlikely(m_device->isDebugEnabled()))
+      if (unlikely(m_device->debugFlags().test(DxvkDebugFlag::Capture)))
         m_flushReason = "Query read-back";
 
       ConsiderFlush(GpuFlushType::ImplicitSynchronization);
@@ -160,7 +160,7 @@ namespace dxvk {
   void STDMETHODCALLTYPE D3D11ImmediateContext::Flush() {
     D3D10DeviceLock lock = LockContext();
 
-    if (unlikely(m_device->isDebugEnabled()))
+    if (unlikely(m_device->debugFlags().test(DxvkDebugFlag::Capture)))
       m_flushReason = "Explicit Flush";
 
     ExecuteFlush(GpuFlushType::ExplicitFlush, nullptr, true);
@@ -172,7 +172,7 @@ namespace dxvk {
           HANDLE                      hEvent) {
     D3D10DeviceLock lock = LockContext();
 
-    if (unlikely(m_device->isDebugEnabled()))
+    if (unlikely(m_device->debugFlags().test(DxvkDebugFlag::Capture)))
       m_flushReason = "Explicit Flush";
 
     ExecuteFlush(GpuFlushType::ExplicitFlush, hEvent, true);
@@ -195,7 +195,7 @@ namespace dxvk {
       ctx->signalFence(cFence, cValue);
     });
 
-    if (unlikely(m_device->isDebugEnabled()))
+    if (unlikely(m_device->debugFlags().test(DxvkDebugFlag::Capture)))
       m_flushReason = "Fence signal";
 
     ExecuteFlush(GpuFlushType::ExplicitFlush, nullptr, true);
@@ -212,7 +212,7 @@ namespace dxvk {
     if (!fence)
       return E_INVALIDARG;
 
-    if (unlikely(m_device->isDebugEnabled()))
+    if (unlikely(m_device->debugFlags().test(DxvkDebugFlag::Capture)))
       m_flushReason = "Fence wait";
 
     ExecuteFlush(GpuFlushType::ExplicitFlush, nullptr, true);
@@ -926,7 +926,7 @@ namespace dxvk {
         return true;
     }
 
-    if (unlikely(m_device->isDebugEnabled())) {
+    if (unlikely(m_device->debugFlags().test(DxvkDebugFlag::Capture))) {
       m_flushReason = str::format("Map ", Resource.getDebugName(), " (MAP",
         MapType != D3D11_MAP_WRITE ? "_READ" : "",
         MapType != D3D11_MAP_READ ? "_WRITE" : "", ")");
@@ -1142,7 +1142,7 @@ namespace dxvk {
       cStagingMemory    = GetStagingMemoryStatistics().allocatedTotal,
       cFlushReason      = std::exchange(m_flushReason, std::string())
     ] (DxvkContext* ctx) {
-      auto debugLabel = vk::makeLabel(0xc0a2f0, cFlushReason.c_str());
+      auto debugLabel = vk::makeLabel(0xff5959, cFlushReason.c_str());
 
       ctx->signal(cSubmissionFence, cSubmissionId);
       ctx->signal(cStagingFence, cStagingMemory);
