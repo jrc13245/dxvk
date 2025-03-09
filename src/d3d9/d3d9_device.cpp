@@ -3505,7 +3505,7 @@ namespace dxvk {
     const uint32_t minorVersion = D3DSHADER_VERSION_MINOR(pFunction[0]);
 
     // Late fixed-function capable hardware exposed support for VS 1.1
-    const uint32_t shaderModelVS = m_d3d9Options.shaderModel == 0 ? 1 : m_d3d9Options.shaderModel;
+    const uint32_t shaderModelVS = m_isD3D8Compatible ? 1u : std::max(1u, m_d3d9Options.shaderModel);
 
     if (unlikely(majorVersion > shaderModelVS
              || (majorVersion == 1 && minorVersion > 1)
@@ -3527,6 +3527,16 @@ namespace dxvk {
       pFunction,
       &moduleInfo)))
       return D3DERR_INVALIDCALL;
+
+
+    if (m_isD3D8Compatible && !m_isSWVP) {
+      const uint32_t maxVSConstantIndex = module.GetMaxDefinedConstant();
+      // D3D8 enforces the value advertised in pCaps->MaxVertexShaderConst for HWVP
+      if (unlikely(maxVSConstantIndex > caps::MaxFloatConstantsVS - 1)) {
+        Logger::err(str::format("D3D9DeviceEx::CreateVertexShader: Invalid constant index ", maxVSConstantIndex));
+        return D3DERR_INVALIDCALL;
+      }
+    }
 
     *ppShader = ref(new D3D9VertexShader(this,
       &m_shaderAllocator,
@@ -3882,7 +3892,9 @@ namespace dxvk {
     const uint32_t majorVersion = D3DSHADER_VERSION_MAJOR(pFunction[0]);
     const uint32_t minorVersion = D3DSHADER_VERSION_MINOR(pFunction[0]);
 
-    if (unlikely(majorVersion > m_d3d9Options.shaderModel
+    const uint32_t shaderModelPS = m_isD3D8Compatible ? std::min(1u, m_d3d9Options.shaderModel) : m_d3d9Options.shaderModel;
+
+    if (unlikely(majorVersion > shaderModelPS
              || (majorVersion == 1 && minorVersion > 4)
              // Skip checking the SM2 minor version, as it has a 2_x mode apparently
              || (majorVersion == 3 && minorVersion != 0))) {
