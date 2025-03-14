@@ -588,11 +588,24 @@ namespace dxvk {
       // Set this as our cursor.
       return m_cursor.SetHardwareCursor(XHotSpot, YHotSpot, bitmap);
     } else {
+      D3D9SideloadCursor largeCursor = GetEnlargedCursor(hwCursor, inputWidth, inputHeight, XHotSpot, YHotSpot, data);
+      if(largeCursor.data != nullptr) {
+        XHotSpot = largeCursor.XHotSpot;
+        YHotSpot = largeCursor.YHotSpot;
+        inputWidth = largeCursor.width;
+        inputHeight = largeCursor.height;
+      }
+
       size_t copyPitch = inputWidth * HardwareCursorFormatSize;
       std::vector<uint8_t> bitmap(inputHeight * copyPitch, 0);
 
-      for (uint32_t h = 0; h < inputHeight; h++)
-        std::memcpy(&bitmap[h * copyPitch], &data[h * lockedBox.RowPitch], copyPitch);
+      if(largeCursor.data != nullptr) {
+        for (uint32_t h = 0; h < inputHeight; h++)
+          std::memcpy(&bitmap[h * copyPitch], &largeCursor.data[h * copyPitch], copyPitch);
+      } else {
+        for (uint32_t h = 0; h < inputHeight; h++)
+          std::memcpy(&bitmap[h * copyPitch], &data[h * lockedBox.RowPitch], copyPitch);
+      }
 
       UnlockImage(cursorTex, 0, 0);
 
