@@ -428,6 +428,93 @@ namespace dxvk {
     return D3D_OK;
   }
 
+  D3D9SideloadCursor D3D9DeviceEx::GetEnlargedCursor(const bool hwCursor, uint32_t inputWidth, uint32_t inputHeight, UINT XHotSpot, UINT YHotSpot, const uint8_t* inputData){
+    switch (m_d3d9Options.enlargeHardwareCursor)
+    {
+    case 2:
+    case 3:
+    case 4:
+      break;
+    default:
+      return {};
+    }
+
+    if(hwCursor) {
+      if(inputWidth * m_d3d9Options.enlargeHardwareCursor > HardwareCursorWidth
+        || inputHeight * m_d3d9Options.enlargeHardwareCursor > HardwareCursorHeight) {
+          return {};
+        }
+    }
+
+    uint32_t inputPitch = inputWidth * HardwareCursorFormatSize;
+
+    uint8_t hashBytes[8];
+    JAndrewRogers::MetroHash64::Hash(inputData, inputPitch * inputHeight, hashBytes);
+
+    std::stringstream hexString{};
+    hexString << std::hex;
+    for (auto const& i: hashBytes) {
+      hexString << std::setw(2) << std::setfill('0') << (int)i;
+    }
+    std::string hash = hexString.str();
+    if(hwCursor) {
+      Logger::info("Enlarge D3D9 hardware cursor: " + hash);
+    } else {
+      Logger::info("Enlarge D3D9 software cursor: " + hash);
+    }
+
+    D3D9SideloadCursor result = {};
+
+    if( auto search = m_sideloadCursors.find(hash); search != m_sideloadCursors.end() ) {
+      // cursor in cache
+      result = search->second;
+    } else {
+      // going hqx
+      result.XHotSpot = XHotSpot * m_d3d9Options.enlargeHardwareCursor;
+      result.YHotSpot = YHotSpot * m_d3d9Options.enlargeHardwareCursor;
+      result.width = inputWidth * m_d3d9Options.enlargeHardwareCursor;
+      result.height = inputHeight * m_d3d9Options.enlargeHardwareCursor;
+
+      // We are using malloc() here, however we wish stbi_image_free() to release it. Should work as we didn't define a different STBI_MALLOC
+      result.data = (unsigned char*)malloc(result.width * result.height * HardwareCursorFormatSize);
+      if(result.data == NULL) {
+        Logger::err("Failed to malloc() for hqx cursor");
+        return {};
+      }
+
+      uint32_t *dstPtr = (uint32_t *)result.data;
+      uint32_t *srcPtr = (uint32_t *)inputData;
+
+      switch (m_d3d9Options.enlargeHardwareCursor)
+      {
+      case 2:
+      {
+        hq2x_32_rb(srcPtr, inputPitch, dstPtr, result.width * HardwareCursorFormatSize, inputWidth, inputHeight);
+      }
+      break;
+      case 3:
+      {
+        hq3x_32_rb(srcPtr, inputPitch, dstPtr, result.width * HardwareCursorFormatSize, inputWidth, inputHeight);
+      }
+      break;
+      case 4:
+      {
+        hq4x_32_rb(srcPtr, inputPitch, dstPtr, result.width * HardwareCursorFormatSize, inputWidth, inputHeight);
+      }
+      break;
+      default:
+      {
+        free(result.data);
+        return {};
+      }
+      }
+
+      m_sideloadCursors.insert({hash, result});
+    }
+
+    return result;
+  }
+
   HRESULT STDMETHODCALLTYPE D3D9DeviceEx::SetCursorProperties(
           UINT               XHotSpot,
           UINT               YHotSpot,
@@ -482,93 +569,17 @@ namespace dxvk {
       size_t copyPitch = std::min<size_t>(
         HardwareCursorPitch,
         inputWidth * HardwareCursorFormatSize);
-
-      size_t copyHeight = std::min<size_t>(
-        HardwareCursorHeight,
-        inputHeight);
-
-      size_t copyWidth = std::min<size_t>(
-        HardwareCursorWidth,
-        inputWidth);
-
       
+      D3D9SideloadCursor largeCursor = GetEnlargedCursor(hwCursor, inputWidth, inputHeight, XHotSpot, YHotSpot, data);
 
-      if( (m_d3d9Options.enlargeHardwareCursor == 2 || m_d3d9Options.enlargeHardwareCursor == 3 || m_d3d9Options.enlargeHardwareCursor == 4)
-          && (copyHeight * m_d3d9Options.enlargeHardwareCursor <= HardwareCursorHeight)
-          && (copyWidth * m_d3d9Options.enlargeHardwareCursor <= HardwareCursorWidth) ) {
-
-        uint8_t hashBytes[8];
-        JAndrewRogers::MetroHash64::Hash(data, copyPitch * copyHeight, hashBytes);
-
-        std::stringstream hexString;
-        hexString << std::hex;
-        for (auto const& i: hashBytes) {
-          hexString << std::setw(2) << std::setfill('0') << (int)i;
-        }
-        std::string hash = hexString.str();
-        
-        Logger::info("Enlarge D3D9 hardware cursor: " + hash);
-
-        D3D9SideloadCursor cur;
-        cur.data = NULL;
-
-        if( auto search = m_sideloadCursors.find(hash); search != m_sideloadCursors.end() ) {
-
-          // Using sideload cursor
-          cur = search->second;
-
-        } else {
-
-          // Using hqx
-          cur.XHotSpot = XHotSpot * m_d3d9Options.enlargeHardwareCursor;
-          cur.YHotSpot = YHotSpot * m_d3d9Options.enlargeHardwareCursor;
-          cur.width = copyWidth * m_d3d9Options.enlargeHardwareCursor;
-          cur.height = copyHeight * m_d3d9Options.enlargeHardwareCursor;
-
-          // We using malloc() here, however we wish stbi_image_free() to release it. Should work as we didn't define a different STBI_MALLOC
-          cur.data = (unsigned char*)malloc(cur.width * cur.height * HardwareCursorFormatSize);
-
-          if(cur.data == NULL) {
-            Logger::err("Failed to malloc() for hqx cursor");
-
-          } else {
-            uint32_t *dstPtr = (uint32_t *)cur.data;
-            uint32_t *srcPtr = (uint32_t *)data;
-
-            switch (m_d3d9Options.enlargeHardwareCursor)
-            {
-            case 2:
-              hq2x_32_rb(srcPtr, copyPitch, dstPtr, cur.width * HardwareCursorFormatSize, copyWidth, copyHeight);
-              break;
-            case 3:
-              hq3x_32_rb(srcPtr, copyPitch, dstPtr, cur.width * HardwareCursorFormatSize, copyWidth, copyHeight);
-              break;
-            case 4:
-              hq4x_32_rb(srcPtr, copyPitch, dstPtr, cur.width * HardwareCursorFormatSize, copyWidth, copyHeight);
-              break;
-            }
-
-            m_sideloadCursors.insert({hash, cur});
-          }
-        }
-
-        if (cur.data != NULL) {
-          XHotSpot = cur.XHotSpot;
-          YHotSpot = cur.YHotSpot;
-
-          for (uint32_t h = 0; h < (uint32_t)cur.height; h++)
-            std::memcpy(&bitmap[h * HardwareCursorPitch], &cur.data[h * cur.width * HardwareCursorFormatSize], cur.width * HardwareCursorFormatSize);
-
-        
-        } else {
-          // for some reason, we can neither sideload nor hqx
-          // we fallback to direct copy
-          for (uint32_t h = 0; h < copyHeight; h++)
-            std::memcpy(&bitmap[h * HardwareCursorPitch], &data[h * lockedBox.RowPitch], copyPitch);
-          
-        }
+      if(largeCursor.data != nullptr) {
+        XHotSpot = largeCursor.XHotSpot;
+        YHotSpot = largeCursor.YHotSpot;
+        for (uint32_t h = 0; h < largeCursor.height; h++)
+          std::memcpy(&bitmap[h * HardwareCursorPitch], &largeCursor.data[h * largeCursor.width * HardwareCursorFormatSize], largeCursor.width * HardwareCursorFormatSize);
       } else {
-        for (uint32_t h = 0; h < copyHeight; h++)
+        // Fallback to direct copy
+        for (uint32_t h = 0; h < inputHeight; h++)
           std::memcpy(&bitmap[h * HardwareCursorPitch], &data[h * lockedBox.RowPitch], copyPitch);
       }
 
