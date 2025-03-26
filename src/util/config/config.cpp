@@ -167,6 +167,7 @@ namespace dxvk {
     /* Hitman 2 - requires AGS library      */
     { R"(\\HITMAN2\.exe$)", {{
       { "dxgi.customVendorId",              "10de" },
+      { "d3d11.cachedDynamicResources",     "c"    },
     }} },
     /* Modern Warfare Remastered                  */
     { R"(\\h1(_[ms]p64_ship|-mod)\.exe$)", {{
@@ -1045,6 +1046,11 @@ namespace dxvk {
      * GetFrontBufferData().                      */
     { R"(\\sh2pc\.exe$)", {{
       { "d3d9.extraFrontbuffer",            "True" },
+    }} },
+    /* Lego Indiana Jones: The Original Adventures *
+     * Fix UI performance                          */
+    { R"(\\LEGOIndy\.exe$)", {{
+      { "d3d9.cachedDynamicBuffers",        "True" },
     }} },
 
     /**********************************************/
