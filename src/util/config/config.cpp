@@ -41,8 +41,10 @@ namespace dxvk {
     }} },
     /* World of Warcraft                           *
      * Bugs out on some multi-gpu systems.         */
-    { R"(\\Wow(Classic)?\.exe$)", {{
+    { R"(\\(w|W)(o|O)(w|W)(Classic)?(_sideload-DLL|_tweaked)?\.exe$)", {{
       { "dxvk.hideIntegratedGraphics",      "True"  },
+      { "d3d9.enlargeHardwareCursor",       "4" },
+      { "d3d9.deviceLossOnFocusLoss",       "True" },
     }} },
     /* Bright Memory - Will choose other vendors   *
      * over Intel even if Intel is the only dGPU   */
@@ -482,11 +484,6 @@ namespace dxvk {
     { R"(\\HatinTimeGame\.exe$)", {{
       { "d3d9.strictPow",                   "False" },
       { "d3d9.lenientClear",                "True" },
-    }} },
-    /* Turtle WoW: Enlarge hardware cursor into 4X size and enable deviceLossOnFocusLoss for AMD FSR multiboxing on WINE */
-    { R"(\\WoW(_sideload-DLL|_tweaked)?\.exe$)", {{
-      { "d3d9.enlargeHardwareCursor",       "4" },
-      { "d3d9.deviceLossOnFocusLoss",       "True" },
     }} },
     /* Anarchy Online                             */
     { R"(\\anarchyonline\.exe$)", {{
