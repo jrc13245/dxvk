@@ -1057,55 +1057,56 @@ namespace dxvk {
     return barrier;
   }
 
-
   DxvkGraphicsPipelineHandle DxvkGraphicsPipeline::getPipelineHandle(
-    const DxvkGraphicsPipelineStateInfo& state,
-          bool                           async) {
-    DxvkGraphicsPipelineInstance* instance = this->findInstance(state);
+      const DxvkGraphicsPipelineStateInfo& state,
+      bool async) {
+      DxvkGraphicsPipelineInstance* instance = this->findInstance(state);
 
-    if (unlikely(!instance)) {
-        // Exit early if the state vector is invalid
-        if (!this->validatePipelineState(state, true))
-            return DxvkGraphicsPipelineHandle();
+      if (unlikely(!instance)) {
+          // Exit early if the state vector is invalid
+          if (!this->validatePipelineState(state, true))
+              return DxvkGraphicsPipelineHandle();
 
-        bool useAsync = m_device->config().enableAsync && async;
+          bool useAsync = m_device->config().enableAsync && async;
 
-        // Prevent other threads from adding new instances and check again
-        std::unique_lock<dxvk::mutex> lock(useAsync ? m_asyncMutex : m_mutex);
-        instance = this->findInstance(state);
+          // Prevent other threads from adding new instances and check again
+          std::unique_lock<dxvk::mutex> lock(useAsync ? m_asyncMutex : m_mutex);
+          instance = this->findInstance(state);
 
-        if (!instance) {
-            if (useAsync) {
-                m_async = true;
-                lock.unlock();
+          if (!instance) {
+              if (useAsync) {
+                  m_async = true;
+                  lock.unlock();
 
-                m_workers->compileGraphicsPipeline(this, state, DxvkPipelinePriority::High);
+                  m_workers->compileGraphicsPipeline(this, state, DxvkPipelinePriority::High);
 
-                return std::make_pair(VK_NULL_HANDLE, DxvkGraphicsPipelineType::FastPipeline);
-            }
-            else {
+                  DxvkGraphicsPipelineHandle handle;
+                  handle.handle = VK_NULL_HANDLE;
+                  handle.type = DxvkGraphicsPipelineType::FastPipeline;
+                  return handle;
+              }
+              else {
+                  // Keep pipeline object locked, at worst we're going to stall
+                  // a state cache worker and the current thread needs priority.
+                  bool canCreateBasePipeline = this->canCreateBasePipeline(state);
+                  instance = this->createInstance(state, canCreateBasePipeline);
 
-                // Keep pipeline object locked, at worst we're going to stall
-                // a state cache worker and the current thread needs priority.
-                bool canCreateBasePipeline = this->canCreateBasePipeline(state);
-                instance = this->createInstance(state, canCreateBasePipeline);
+                  // Unlock here since we may dispatch the pipeline to a worker,
+                  // which will then acquire it to increment the use counter.
+                  lock.unlock();
 
-                // Unlock here since we may dispatch the pipeline to a worker,
-                // which will then acquire it to increment the use counter.
-                lock.unlock();
+                  // If necessary, compile an optimized pipeline variant
+                  if (!instance->fastHandle.load())
+                      m_workers->compileGraphicsPipeline(this, state, DxvkPipelinePriority::Low);
 
-                // If necessary, compile an optimized pipeline variant
-                if (!instance->fastHandle.load())
-                    m_workers->compileGraphicsPipeline(this, state, DxvkPipelinePriority::Low);
-
-                // Only store pipelines in the state cache that cannot benefit
-                // from pipeline libraries, or if that feature is disabled.
-                if (!canCreateBasePipeline)
-                    this->writePipelineStateToCache(state);
-            }
-        }
-    }
-    return instance->getHandle();
+                  // Only store pipelines in the state cache that cannot benefit
+                  // from pipeline libraries, or if that feature is disabled.
+                  if (!canCreateBasePipeline)
+                      this->writePipelineStateToCache(state);
+              }
+          }
+      }
+      return instance->getHandle();
   }
 
 
