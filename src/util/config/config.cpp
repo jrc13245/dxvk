@@ -41,8 +41,10 @@ namespace dxvk {
     }} },
     /* World of Warcraft                           *
      * Bugs out on some multi-gpu systems.         */
-    { R"(\\Wow(Classic)?\.exe$)", {{
+    { R"(\\(w|W)(o|O)(w|W)(Classic)?(_sideload-DLL|_tweaked)?\.exe$)", {{
       { "dxvk.hideIntegratedGraphics",      "True"  },
+      { "d3d9.enlargeHardwareCursor",       "4" },
+      { "d3d9.deviceLossOnFocusLoss",       "True" },
     }} },
     /* Bright Memory - Will choose other vendors   *
      * over Intel even if Intel is the only dGPU   */
@@ -468,6 +470,11 @@ namespace dxvk {
     { R"(\\WatchDogs2\.exe$)", {{
       { "d3d11.forceComputeUavBarriers",    "True" },
     }} },
+    /* Rocketbirds 2: Ignores row pitch for mapped *
+     * images, corrupting intro video              */
+    { R"(\\Rocketbirds 2\\Game\.exe$)", {{
+      { "d3d11.disableDirectImageMapping",  "True" },
+    }} },
 
     /**********************************************/
     /* D3D9 GAMES                                 */
@@ -477,11 +484,6 @@ namespace dxvk {
     { R"(\\HatinTimeGame\.exe$)", {{
       { "d3d9.strictPow",                   "False" },
       { "d3d9.lenientClear",                "True" },
-    }} },
-    /* Turtle WoW: Enlarge hardware cursor into 4X size and enable deviceLossOnFocusLoss for AMD FSR multiboxing on WINE */
-    { R"(\\WoW(_sideload-DLL|_tweaked)?\.exe$)", {{
-      { "d3d9.enlargeHardwareCursor",       "4" },
-      { "d3d9.deviceLossOnFocusLoss",       "True" },
     }} },
     /* Anarchy Online                             */
     { R"(\\anarchyonline\.exe$)", {{
@@ -645,7 +647,7 @@ namespace dxvk {
     }} },
     /* Dragon Nest                               */
     { R"(\\DragonNest_x64\.exe$)", {{
-      { "d3d9.memoryTrackTest ",            "True" },
+      { "d3d9.memoryTrackTest",             "True" },
     }} },
     /* Dal Segno                                 */
     { R"(\\DST\.exe$)", {{
@@ -931,15 +933,16 @@ namespace dxvk {
     { R"(\\ninthdawnii\.exe$)", {{
       { "d3d9.deferSurfaceCreation",        "True" },
     }} },
-    /* Delta Force: Xtreme 1 & 2                 *
-     * Black screen on Alt-Tab and performance   */
+    /* Delta Force: Xtreme 1 & 2 - Performance   */
     { R"(\\(DFX|dfx2)\.exe$)", {{
       { "d3d9.cachedDynamicBuffers",        "True" },
     }} },
     /* Prototype                                 *
-     * Incorrect shadows on AMD & Intel          */
+     * Incorrect shadows on AMD & Intel.         *
+     * AA 4x can not be selected above 2GB vram  */
     { R"(\\prototypef\.exe$)", {{ 
       { "d3d9.supportDFFormats",            "False" },
+      { "dxgi.maxDeviceMemory",             "2047" },
     }} },
     /* STAR WARS: The Force Unleashed            *
      * Prevents black screen on each alt-tab     */
@@ -966,8 +969,8 @@ namespace dxvk {
     { R"(\\WRC4\.exe$)", {{
       { "d3d9.maxFrameRate",                "60" },
     }} },
-    /* Splinter Cell Conviction - Alt-tab black  *
-     * screen and unsupported GPU complaint      */
+    /* Splinter Cell Conviction                  *
+     * Unsupported GPU complaint                 */
     { R"(\\conviction_game\.exe$)", {{
       { "dxgi.customVendorId",              "10de" },
       { "dxgi.customDeviceId",              "05e0" },
