@@ -715,6 +715,8 @@ namespace dxvk {
      */
     bool SupportsSWVP();
 
+    bool SupportsVCacheQuery() const;
+
     bool IsExtended();
 
     HWND GetWindow();
@@ -1474,6 +1476,8 @@ namespace dxvk {
 
     D3D9Adapter*                    m_adapter;
     Rc<DxvkDevice>                  m_dxvkDevice;
+
+    uint32_t                        m_vendorId;
 
     D3D9MemoryAllocator             m_memoryAllocator;
 
