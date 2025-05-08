@@ -715,6 +715,8 @@ namespace dxvk {
      */
     bool SupportsSWVP();
 
+    bool SupportsVCacheQuery() const;
+
     bool IsExtended();
 
     HWND GetWindow();
@@ -911,11 +913,7 @@ namespace dxvk {
 
     void BindViewportAndScissor();
 
-    inline bool IsAlphaToCoverageEnabled() {
-      const bool alphaTest = m_state.renderStates[D3DRS_ALPHATESTENABLE] != 0;
-
-      return (m_amdATOC || (m_nvATOC && alphaTest)) && m_flags.test(D3D9DeviceFlag::ValidSampleMask);
-    }
+    bool IsAlphaToCoverageEnabled() const;
 
     inline bool IsDepthBiasEnabled() {
       const auto& rs = m_state.renderStates;
@@ -1474,6 +1472,8 @@ namespace dxvk {
 
     D3D9Adapter*                    m_adapter;
     Rc<DxvkDevice>                  m_dxvkDevice;
+
+    uint32_t                        m_vendorId;
 
     D3D9MemoryAllocator             m_memoryAllocator;
 
